@@ -102,6 +102,9 @@ export async function callProvider<T>(
       return result;
     } catch (err) {
       lastErr = err;
+      // A rate limit won't lift within the backoff; retrying only spends more
+      // of the quota and earns more 429s. Fail now, try next run.
+      if (err instanceof Error && /\bHTTP 429\b/.test(err.message)) break;
       if (attempt < MAX_ATTEMPTS) await sleep(backoffMs(attempt));
     }
   }

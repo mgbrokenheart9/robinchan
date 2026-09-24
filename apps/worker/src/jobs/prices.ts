@@ -46,12 +46,19 @@ export async function runPrices(): Promise<void> {
     .slice(0, 5);
   await cache.set(cacheKey('market', 'snapshot'), snapshot, PRICE_TTL_SEC);
 
-  // Own breaker: index symbols aren't on Finnhub's free plan, and their
-  // timeouts mustn't pause equity quotes (see fetchQuotes).
-  const indexQuotes = await quotesFor(
-    INDEX_SYMBOLS.filter((s) => s !== 'RCHAN'),
-    'finnhub-index',
-  );
+  // Index symbols (SPX, NDX, …) aren't on Finnhub's free plan: every request
+  // fails, and at three price runs a minute those failures alone ate a fifth
+  // of the 60-calls/min budget, pushing the equity quotes into 429s. So they
+  // are only requested when the plan includes them (FINNHUB_INDICES=true),
+  // on their own breaker. Otherwise dev shows fixtures and anything else
+  // leaves the index cards empty rather than invent numbers.
+  const indexSymbols = INDEX_SYMBOLS.filter((s) => s !== 'RCHAN');
+  const indexQuotes =
+    process.env.FINNHUB_INDICES === 'true'
+      ? await quotesFor(indexSymbols, 'finnhub-index')
+      : fixturesEnabled()
+        ? fixtureQuotes(indexSymbols)
+        : [];
   const indices: MarketIndex[] = indexQuotes.map((q) => ({
     ...toTicker(q, INDEX_NAMES),
     spark: fixtureSpark(q.symbol, SPARK_POINTS),
