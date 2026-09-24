@@ -1,0 +1,72 @@
+{
+	"Type": "Live2D Expression",
+	"FadeInTime": 0.5,
+	"FadeOutTime": 0.5,
+	"Parameters": [
+		{
+			"Id": "ParamArmCross",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmLowerL",
+			"Value": -1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmLowerR",
+			"Value": -1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmChopR",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmJawL",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmUpperR",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmUpperL",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmMiddleL",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmMiddleR",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmWaistL",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmWaistR",
+			"Value": 0,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmMouthL",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamArmMouthR",
+			"Value": 1,
+			"Blend": "Add"
+		}
+	]
+}

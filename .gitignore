@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+out/
+.env
+.env.local
+# Fallback cache dan database saat DATABASE_URL / REDIS_URL kosong
+.data/
+*.tsbuildinfo
+.DS_Store
+.vercel
+
+.vercel
+.env*
+
+# Local env copy without the leading dot — holds real API keys.
+/env

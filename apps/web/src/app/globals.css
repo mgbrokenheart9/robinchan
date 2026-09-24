@@ -1,0 +1,674 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Marquee keyframes are written directly, outside the Tailwind config.
+ * `<Marquee>` sets `animation-name` via inline style since speed is a
+ * runtime prop, and Tailwind only emits @keyframes actually referenced by an
+ * `animate-*` utility — in the config, both would get tree-shaken.
+ */
+@keyframes marquee-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-right {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@layer base {
+  /* Theme tokens — bare RGB channels, consumed by tailwind.config.ts as
+     `rgb(var(--c-x) / <alpha-value>)`. Light is the default; the `.dark`
+     class on <html> (set by <ThemeToggle> and the pre-paint script in the
+     root layout) swaps in the dark set. */
+  :root {
+    color-scheme: light;
+
+    --c-bg: 248 250 246; /* #F8FAF6 */
+    --c-surface: 255 255 255; /* #FFFFFF */
+    --c-surface-2: 237 243 236; /* #EDF3EC */
+    --c-border: 229 237 231; /* #E5EDE7 */
+    --c-border-soft: 237 243 236; /* #EDF3EC */
+    --c-text: 31 41 55; /* #1F2937 */
+    --c-text-2: 75 85 99; /* #4B5563 */
+    --c-text-3: 154 163 184; /* #9AA3B8 */
+    --c-accent: 212 244 80; /* #D4F450 */
+    --c-accent-fg: 77 124 15; /* #4D7C0F */
+    --c-accent-2: 163 230 53; /* #A3E635 */
+    --c-accent-ink: 31 41 55; /* #1F2937 */
+    --c-up: 34 197 94; /* #22C55E */
+    --c-down: 239 68 68; /* #EF4444 */
+    --c-warning: 245 158 11; /* #F59E0B */
+    --c-info: 59 130 246; /* #3B82F6 */
+    --c-overlay: 31 41 55;
+    --c-companion-pink: 236 72 153; /* #EC4899 */
+    --c-ember: 217 119 6; /* #D97706 */
+
+    /* Glass panels (`.card-glass`): a bright frosted pane over a light page. */
+    --glass-bg: rgba(255, 255, 255, 0.62);
+    --glass-bg-hover: rgba(255, 255, 255, 0.78);
+    --glass-sheen: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.7) 0%,
+      rgba(255, 255, 255, 0.2) 42%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    --glass-border: rgba(31, 41, 55, 0.08);
+    --glass-border-hover: rgba(31, 41, 55, 0.14);
+    --glass-highlight: rgba(255, 255, 255, 0.9);
+    --glass-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 0 rgba(31, 41, 55, 0.04),
+      0 24px 60px -30px rgba(31, 41, 55, 0.28);
+
+    /* Halo for text sitting on footage (`.text-on-media`). */
+    --media-text-shadow:
+      0 1px 2px rgba(255, 255, 255, 0.6), 0 2px 20px rgba(248, 250, 246, 0.85);
+
+    /* Hero footage scrim (`<HeroBackground>`). Light keeps it thin: a soft
+       wash behind the left copy column only, and a short fade at the bottom
+       so the hero still meets the next section without a hard edge. */
+    --hero-scrim:
+      linear-gradient(
+        to right,
+        rgb(248 250 246 / 0.35) 0%,
+        rgb(248 250 246 / 0.15) 40%,
+        rgb(248 250 246 / 0) 65%
+      ),
+      linear-gradient(
+        to bottom,
+        rgb(248 250 246 / 0) 0%,
+        rgb(248 250 246 / 0) 78%,
+        rgb(248 250 246 / 0.6) 90%,
+        rgb(248 250 246) 100%
+      );
+
+    --scrollbar: #d5ddd6;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --c-bg: 10 10 10; /* #0A0A0A */
+    --c-surface: 17 17 17; /* #111111 */
+    --c-surface-2: 21 21 21; /* #151515 */
+    --c-border: 36 36 36; /* #242424 */
+    --c-border-soft: 28 28 28; /* #1C1C1C */
+    --c-text: 255 255 255;
+    --c-text-2: 156 156 156; /* #9C9C9C */
+    --c-text-3: 110 110 110; /* #6E6E6E */
+    --c-accent: 212 244 80; /* #D4F450 */
+    --c-accent-fg: 212 244 80; /* #D4F450 */
+    --c-accent-2: 163 230 53; /* #A3E635 */
+    --c-accent-ink: 28 38 0; /* #1C2600 */
+    --c-up: 110 231 135; /* #6EE787 */
+    --c-down: 255 128 128; /* #FF8080 */
+    --c-warning: 245 158 11;
+    --c-info: 96 165 250; /* #60A5FA */
+    --c-overlay: 255 255 255;
+    --c-companion-pink: 255 182 193; /* #FFB6C1 */
+    --c-ember: 242 166 90; /* #F2A65A */
+
+    /* Smoked pane over a dark page — see the notes on `.card-glass`. */
+    --glass-bg: rgba(10, 10, 10, 0.45);
+    --glass-bg-hover: rgba(10, 10, 10, 0.36);
+    --glass-sheen: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.1) 0%,
+      rgba(255, 255, 255, 0.03) 42%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    --glass-border: rgba(255, 255, 255, 0.14);
+    --glass-border-hover: rgba(255, 255, 255, 0.22);
+    --glass-highlight: rgba(255, 255, 255, 0.14);
+    --glass-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
+      0 24px 60px -30px rgba(0, 0, 0, 0.95);
+
+    --media-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 20px rgba(0, 0, 0, 0.72);
+
+    --hero-scrim:
+      radial-gradient(100% 70% at 50% 0%, rgba(212, 244, 80, 0.1), transparent 62%),
+      linear-gradient(
+        to right,
+        rgb(10 10 10 / 0.78) 0%,
+        rgb(10 10 10 / 0.5) 42%,
+        rgb(10 10 10 / 0.2) 72%,
+        rgb(10 10 10 / 0.1) 100%
+      ),
+      linear-gradient(
+        to bottom,
+        rgb(10 10 10 / 0.3) 0%,
+        rgb(10 10 10 / 0.32) 40%,
+        rgb(10 10 10 / 0.48) 55%,
+        rgb(10 10 10 / 0.64) 68%,
+        rgb(10 10 10 / 0.78) 79%,
+        rgb(10 10 10 / 0.9) 88%,
+        rgb(10 10 10 / 0.97) 95%,
+        rgb(10 10 10) 100%
+      );
+
+    --scrollbar: #242424;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    font-size: 15px;
+    line-height: 1.55;
+    font-feature-settings: 'ss01';
+  }
+
+  /* Numbers are always tabular so price columns don't wobble when values change. */
+  .font-mono,
+  code,
+  kbd {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings:
+      'tnum' 1,
+      'zero' 1;
+  }
+
+  ::selection {
+    background: rgb(var(--c-accent) / 0.45);
+    color: rgb(var(--c-text));
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-accent-fg));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Thin scrollbar so dense panels don't lose width. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* ---- type scale ---- */
+
+  /* Landing-page display scale (design.md §10). Only the marketing hero uses
+     this; the dashboard's largest type is still `.t-h2` at 24px. Up to 100px,
+     because Home's job is to state the thesis loudly enough that the headline
+     *is* the layout rather than a label sitting on top of one.
+
+     Tracking runs negative here, which contradicts design.md §2's "slightly
+     looser tracking on large headlines" — that rule was written for the old
+     56px ceiling and still holds at that size. Past ~72px the optical effect
+     inverts: the +0.006em that keeps a 56px heading from looking cramped
+     reads as gaps between letters at 100px. */
+  .t-display {
+    @apply font-display font-semibold text-text;
+    /* Floor is set by the longest line ("Read the market.", 16 characters)
+       against a 360px viewport minus the 40px of page gutter — a taller
+       floor overflows there, and the headline is hard-broken into three
+       lines so it can't reflow its way out. */
+    font-size: clamp(2.25rem, 1.05rem + 6.2vw, 6.25rem);
+    line-height: 0.98;
+    letter-spacing: -0.028em;
+  }
+
+  /* Marketing section headings. Deliberately not `.t-h2`/`.t-h3`, which are
+     shared with the dashboard (`PageHeader`, `TierCards`, `/robinchan`) and
+     have to stay small there — design.md §8's restraint rules still govern
+     those pages, and §10 only grants Home the extra latitude. */
+  .t-section {
+    @apply font-display font-semibold text-text;
+    font-size: clamp(1.875rem, 1.2rem + 2.4vw, 3rem);
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+  }
+
+  /* Statement numerals for the proof band — mono, so they inherit the
+     tabular-figure settings the rest of the site's numbers use. */
+  .t-stat {
+    @apply font-mono text-text;
+    font-size: clamp(2.5rem, 1.5rem + 3.4vw, 4rem);
+    line-height: 1;
+    letter-spacing: -0.035em;
+  }
+
+  .t-lead {
+    @apply text-text-2;
+    font-size: clamp(1rem, 0.93rem + 0.3vw, 1.1875rem);
+    line-height: 1.6;
+  }
+
+  .t-h2 {
+    @apply font-display font-semibold text-text;
+    font-size: 1.5rem;
+    line-height: 1.2;
+    letter-spacing: 0.003em;
+  }
+
+  .t-h3 {
+    @apply font-display font-medium text-text;
+    font-size: 1.0625rem;
+    line-height: 1.3;
+  }
+
+  /* Small uppercase label — terminal idiom, used for card titles. */
+  .t-eyebrow {
+    @apply font-mono uppercase text-text-3;
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.1em;
+  }
+
+  .t-body {
+    @apply text-text-2;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
+  .t-small {
+    @apply text-text-3;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .t-num {
+    @apply font-mono text-text;
+    font-size: 0.875rem;
+    letter-spacing: -0.01em;
+  }
+
+  /* Legibility for text sitting directly on video or imagery (design.md
+     §10.3). The alternative is darkening the plate until the text is safe,
+     which is what the first pass did and why the footage was barely
+     visible — a shadow buys the same contrast locally, at the glyph edge,
+     instead of globally across the whole frame. Two shadows: a tight one
+     for edge definition and a wide soft one that lifts the text off busy
+     areas without reading as a drop shadow. */
+  .text-on-media {
+    text-shadow: var(--media-text-shadow);
+  }
+
+  /* ---- surfaces ---- */
+
+  .card {
+    @apply rounded-card border border-border bg-surface;
+  }
+
+  .card-soft {
+    @apply rounded-panel border border-border bg-surface;
+  }
+
+  /* ---- glass surfaces (marketing layout only, design.md §10.2) ---- */
+
+  /* Deliberately a separate class rather than a change to `.card` — `.card`
+     is shared with `/market` and `/robinchan`, where §8's restraint rules
+     still apply and where dense data tables need a flat opaque surface to
+     stay legible.
+
+     Glass only reads as glass when there is something behind it to refract;
+     over flat `#0A0A0A` a backdrop-filter is a no-op and this degrades to a
+     slightly-off card. `<AmbientField>` exists to give the sections below
+     the hero that something. */
+  .card-glass {
+    @apply rounded-card border;
+    /* Per-theme values live in the `--glass-*` tokens at the top of this
+       file. On dark the pane is DARK, not white: in every reference
+       glassmorphism composition the card area is visibly darker and less
+       saturated than the bright shapes passing behind it, and a panel built
+       only from white overlay gets lighter than its surroundings — how
+       frosted acrylic behaves over a light page, not how a smoked pane
+       behaves over a dark one. On light it *is* that frosted acrylic, which
+       is the correct material there. Either way the pane does the
+       legibility work for the body text sitting on it. */
+    background-color: var(--glass-bg);
+    /* Directional sheen on top of the base: real glass is lit from one
+       side, and a uniform fill is the main reason translucency reads as
+       "card with opacity" rather than a surface catching light. */
+    background-image: var(--glass-sheen);
+    border-color: var(--glass-border);
+    /* 40px, deliberately far heavier than the 14–26px the blobs carry
+       themselves. The effect is the *difference* between the two: the same
+       shape stays crisp just outside the border and goes soft just inside
+       it. Matching the blob blur here would erase the comparison and the
+       panel would flatten out again. Saturation is pulled slightly *down*,
+       not up — the pane mutes what it transmits.
+       Prefixed first, standard last: with the standard property first,
+       Turbopack's CSS minifier keeps only the `-webkit-` one, which Chrome
+       and Firefox ignore — the blur silently disappears. */
+    -webkit-backdrop-filter: blur(40px) saturate(125%);
+    backdrop-filter: blur(40px) saturate(125%);
+    /* Top inset hairline is the lit edge; the bottom one is the thickness of
+       the pane. The outer shadow is wide and soft so panels lift off the
+       backdrop without stamping a hard edge onto it. */
+    box-shadow: var(--glass-shadow);
+  }
+
+  .card-glass-hover {
+    @apply transition-all duration-300;
+  }
+
+  .card-glass-hover:hover {
+    border-color: var(--glass-border-hover);
+    /* Lifts by letting slightly more through, not by adding more white. */
+    background-color: var(--glass-bg-hover);
+  }
+
+  /* Firefox only shipped backdrop-filter on by default in 103, and it's
+     still disabled behind a flag in some builds. Without this the panels
+     fall back to 4% white over near-black — a barely-visible surface with
+     body text on it, which is a legibility bug, not a cosmetic one. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .card-glass {
+      @apply bg-surface;
+      /* The sheen has to be cleared, not just covered — `background-image`
+         paints over `background-color`, so leaving it set would keep the
+         translucent gradient sitting on top of the opaque fallback. */
+      background-image: none;
+      border-color: theme(colors.border);
+    }
+
+    /* The hover state has to be overridden too. Its translucent white is
+       computed against the page behind it, so left alone it would make an
+       opaque fallback card go *darker* on hover instead of lighter. */
+    .card-glass-hover:hover {
+      @apply bg-surface-2;
+      background-image: none;
+      border-color: theme(colors.text-3);
+    }
+  }
+
+  /* Table rows and dense lists stay sharper (design.md §2). */
+  .row-dense {
+    @apply rounded-row;
+  }
+
+  .hairline {
+    @apply border-border-soft;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1;
+    font-size: 0.75rem;
+    line-height: 1;
+  }
+
+  /* ---- controls ---- */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-medium transition-colors;
+    min-height: 44px;
+    padding-inline: 20px;
+    font-size: 0.9375rem;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent text-accent-ink;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 0 24px rgb(var(--c-accent) / 0.35);
+  }
+
+  .btn-ghost {
+    /* Backdrop + blur even at rest, not just on hover — everywhere else
+       this sits on an already-dark surface so it's barely visible, but it
+       means a `btn-ghost` placed over something busier (the Home hero's
+       animated background) still reads clearly without a one-off override. */
+    @apply btn border border-border bg-bg/60 text-text backdrop-blur-sm;
+  }
+
+  .btn-ghost:hover:not(:disabled) {
+    @apply border-text-3 bg-surface-2;
+  }
+
+  /* Secondary button made of the same material as `.card-glass` — for
+     buttons sitting on or inside a glass panel, where a flat `btn-ghost`
+     reads as a hole punched in the pane. Pulls every value from the
+     per-theme `--glass-*` tokens, so it's frosted white on light and
+     smoked on dark. The blur is lighter than the panel's 40px: a button
+     is small enough that a heavy blur just turns it into a solid smear. */
+  .btn-glass {
+    @apply btn border text-text;
+    background-color: var(--glass-bg);
+    background-image: var(--glass-sheen);
+    border-color: var(--glass-border);
+    box-shadow: inset 0 1px 0 0 var(--glass-highlight);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+    backdrop-filter: blur(16px) saturate(125%);
+    transition:
+      background-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .btn-glass:hover:not(:disabled) {
+    background-color: var(--glass-bg-hover);
+    border-color: var(--glass-border-hover);
+    transform: translateY(-1px);
+  }
+
+  .btn-glass:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Same no-backdrop-filter fallback as `.card-glass` above. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .btn-glass {
+      @apply bg-surface;
+      background-image: none;
+      border-color: theme(colors.border);
+    }
+
+    .btn-glass:hover:not(:disabled) {
+      @apply bg-surface-2;
+      border-color: theme(colors.text-3);
+    }
+  }
+
+  .btn:disabled {
+    @apply cursor-not-allowed text-text-3;
+    opacity: 0.55;
+    box-shadow: none;
+  }
+
+  /* ---- data ---- */
+
+  .num-up {
+    @apply text-up;
+  }
+
+  .num-down {
+    @apply text-down;
+  }
+
+  .num-flat {
+    @apply text-text-3;
+  }
+
+  /* Stale data is dimmed, not hidden (brief §8). */
+  .is-stale {
+    opacity: 0.55;
+  }
+
+  .mask-edges {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 56px,
+      #000 calc(100% - 56px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 56px,
+      #000 calc(100% - 56px),
+      transparent 100%
+    );
+  }
+}
+
+@layer utilities {
+  .grid-hero {
+    display: grid;
+    grid-template-columns: 660px 412px;
+    gap: 40px;
+  }
+
+  .grid-stage {
+    display: grid;
+    grid-template-columns: 736px minmax(0, 1fr);
+    gap: 40px;
+  }
+
+  .grid-market {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 384px;
+    gap: 40px;
+  }
+
+  @media (max-width: 1279px) {
+    .grid-hero,
+    .grid-stage,
+    .grid-market {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
+    }
+  }
+
+  /* Shared content width for both shells (design.md §10) — the dashboard
+     shell and the marketing layout both center on this, so switching
+     between them doesn't shift where the page's edges land. */
+  .page-container {
+    margin-inline: auto;
+    width: 100%;
+    max-width: 1112px;
+  }
+
+  /* Landing-page vertical rhythm (design.md §10). The dashboard stacks its
+     modules at 16–24px because density is the point there; Home reads as a
+     sequence of separate statements, and each one needs enough air around it
+     that you finish the previous thought before the next starts. */
+  .section-y {
+    padding-block: clamp(4.5rem, 2rem + 8vw, 9rem);
+  }
+
+  /* Scroll-reveal initial/entered state, driven by `useReveal` (design.md
+     §10). A plain opacity+translate transition — cheap, and already covered
+     by the reduced-motion override above without any extra work. */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    /* Matches Tailwind's `ease-soft` (design.md §3) so scroll-reveal and the
+       sidebar drawer share one motion feel. */
+    transition:
+      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .reveal-in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Home hero backdrop (`<HeroBackground>`) ----
+   Standby image under a video that fades in once it has frames, the layer
+   settling in with a scale + blur on load. */
+.hero-media {
+  animation: hero-media-in 1.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.hero-media-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-media-frame video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 60%;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.hero-media-frame video.is-ready {
+  opacity: 1;
+}
+
+.hero-media-blur {
+  display: none;
+  position: absolute;
+  inset: -8%;
+  filter: blur(30px) saturate(104%);
+  transform: scale(1.05);
+}
+
+@keyframes hero-media-in {
+  from {
+    transform: scale(1.08);
+    filter: blur(14px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    filter: none;
+    opacity: 1;
+  }
+}
+
+/* A 16:9 clip covering an upright phone shows about a quarter of its width.
+   Anchor it to the bottom at a sane scale instead and feather its top edge
+   into a blurred copy of the same frame, which matches exactly. */
+@media (max-width: 900px) and (orientation: portrait) {
+  .hero-media-blur {
+    display: block;
+  }
+
+  .hero-media-frame {
+    top: auto;
+    height: 64svh;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.6) 9%, #000 20%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.6) 9%, #000 20%);
+  }
+}
+
+/* All decorative motion stops — brief §7 and design.md §8. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

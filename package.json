@@ -1,0 +1,31 @@
+{
+  "name": "robinchan",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:web dev:worker",
+    "dev:web": "npm run dev -w @robinchan/web",
+    "dev:worker": "npm run dev -w @robinchan/worker",
+    "build": "node scripts/service-build.mjs",
+    "start": "node scripts/service-start.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint -w @robinchan/web"
+  },
+  "devDependencies": {
+    "@railway/cli": "^5.58.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.2"
+  },
+  "overrides": {
+    "pixi-live2d-display": {
+      "gh-pages": "^6.3.0"
+    }
+  }
+}

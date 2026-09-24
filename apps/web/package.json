@@ -1,0 +1,44 @@
+{
+  "name": "@robinchan/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@pixi/unsafe-eval": "^6.5.10",
+    "@robinchan/core": "*",
+    "@robinchan/shared": "*",
+    "@robinchan/store": "*",
+    "@tanstack/react-query": "^5.103.2",
+    "@vercel/functions": "^3.9.9",
+    "dotenv": "^17.2.3",
+    "lightweight-charts": "^5.2.1",
+    "lucide-react": "^0.545.0",
+    "next": "16.3.6",
+    "ogl": "^1.0.11",
+    "pixi-live2d-display": "0.4.0",
+    "pixi.js": "6.5.10",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "viem": "^2.56.8",
+    "wagmi": "^2.19.5",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.36.0",
+    "eslint-config-next": "16.3.6",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.9.2"
+  }
+}

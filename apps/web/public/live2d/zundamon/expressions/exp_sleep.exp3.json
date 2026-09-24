@@ -1,0 +1,27 @@
+{
+	"Type": "Live2D Expression",
+	"FadeInTime": 0.5,
+	"FadeOutTime": 0.5,
+	"Parameters": [
+		{
+			"Id": "ParamAngleY",
+			"Value": -30,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamAngleZ",
+			"Value": -16,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamPatternMouth",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEyeType4",
+			"Value": 1,
+			"Blend": "Add"
+		}
+	]
+}

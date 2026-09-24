@@ -1,0 +1,236 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "zundamon.moc3",
+		"Textures": [
+			"zundamon.2048/texture_00.png"
+		],
+		"Physics": "zundamon.physics3.json",
+		"DisplayInfo": "zundamon.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "exp_01",
+				"File": "expressions/exp_01.exp3.json"
+			},
+			{
+				"Name": "exp_02",
+				"File": "expressions/exp_02.exp3.json"
+			},
+			{
+				"Name": "exp_03",
+				"File": "expressions/exp_03.exp3.json"
+			},
+			{
+				"Name": "exp_04",
+				"File": "expressions/exp_04.exp3.json"
+			},
+			{
+				"Name": "exp_05",
+				"File": "expressions/exp_05.exp3.json"
+			},
+			{
+				"Name": "exp_angry",
+				"File": "expressions/exp_angry.exp3.json"
+			},
+			{
+				"Name": "exp_angry2",
+				"File": "expressions/exp_angry2.exp3.json"
+			},
+			{
+				"Name": "exp_angry3",
+				"File": "expressions/exp_angry3.exp3.json"
+			},
+			{
+				"Name": "exp_laugh",
+				"File": "expressions/exp_laugh.exp3.json"
+			},
+			{
+				"Name": "exp_laugh2",
+				"File": "expressions/exp_laugh2.exp3.json"
+			},
+			{
+				"Name": "exp_sad",
+				"File": "expressions/exp_sad.exp3.json"
+			},
+			{
+				"Name": "exp_sad2",
+				"File": "expressions/exp_sad2.exp3.json"
+			},
+			{
+				"Name": "exp_sad3",
+				"File": "expressions/exp_sad3.exp3.json"
+			},
+			{
+				"Name": "exp_shy",
+				"File": "expressions/exp_shy.exp3.json"
+			},
+			{
+				"Name": "exp_shy2",
+				"File": "expressions/exp_shy2.exp3.json"
+			},
+			{
+				"Name": "exp_sleep",
+				"File": "expressions/exp_sleep.exp3.json"
+			},
+			{
+				"Name": "exp_relaxed",
+				"File": "expressions/exp_relaxed.exp3.json"
+			},
+			{
+				"Name": "exp_smile",
+				"File": "expressions/exp_smile.exp3.json"
+			},
+			{
+				"Name": "exp_surprise",
+				"File": "expressions/exp_surprise.exp3.json"
+			},
+			{
+				"Name": "exp_surprise2",
+				"File": "expressions/exp_surprise2.exp3.json"
+			},
+			{
+				"Name": "pose_Jaw",
+				"File": "expressions/pose_Jaw.exp3.json"
+			},
+			{
+				"Name": "pose_Middle",
+				"File": "expressions/pose_Middle.exp3.json"
+			},
+			{
+				"Name": "pose_Middle2",
+				"File": "expressions/pose_Middle2.exp3.json"
+			},
+			{
+				"Name": "pose_Middle3",
+				"File": "expressions/pose_Middle3.exp3.json"
+			},
+			{
+				"Name": "pose_Upper",
+				"File": "expressions/pose_Upper.exp3.json"
+			},
+			{
+				"Name": "pose_Upper2",
+				"File": "expressions/pose_Upper2.exp3.json"
+			},
+			{
+				"Name": "pose_Upper3",
+				"File": "expressions/pose_Upper3.exp3.json"
+			},
+			{
+				"Name": "pose_Waist",
+				"File": "expressions/pose_Waist.exp3.json"
+			},
+			{
+				"Name": "pose_Waist2",
+				"File": "expressions/pose_Waist2.exp3.json"
+			},
+			{
+				"Name": "pose_chop",
+				"File": "expressions/pose_chop.exp3.json"
+			},
+			{
+				"Name": "pose_cross",
+				"File": "expressions/pose_cross.exp3.json"
+			},
+			{
+				"Name": "pose_mouth",
+				"File": "expressions/pose_mouth.exp3.json"
+			},
+			{
+				"Name": "pose_mouth2",
+				"File": "expressions/pose_mouth2.exp3.json"
+			}
+		],
+		"Motions": {
+			"": [
+				{
+					"File": "motions/mtnBody_angry.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_laugh.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_laugh2.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_laugh3.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_no.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_no2.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_no3.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_point.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_point2.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_point3.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_think.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_think2.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_think3.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_tremble.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_wave.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_wave2.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_wave3.motion3.json"
+				},
+				{
+					"File": "motions/mtnBody_yes.motion3.json"
+				},
+				{
+					"File": "motions/mtnFace_laugh.motion3.json"
+				},
+				{
+					"File": "motions/mtnFace_sad.motion3.json"
+				},
+				{
+					"File": "motions/mtnFace_shy.motion3.json"
+				},
+				{
+					"File": "motions/mtnFace_surprise.motion3.json"
+				},
+				{
+					"File": "motions/mtnFace_talk.motion3.json"
+				}
+			]
+		}
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": [
+				"ParamMouthOpenY"
+			]
+		}
+	],
+	"HitAreas": []
+}

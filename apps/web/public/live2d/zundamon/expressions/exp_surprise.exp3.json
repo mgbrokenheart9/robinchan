@@ -1,0 +1,67 @@
+{
+	"Type": "Live2D Expression",
+	"FadeInTime": 0.5,
+	"FadeOutTime": 0.5,
+	"Parameters": [
+		{
+			"Id": "ParamPatternBrow",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamMouthForm",
+			"Value": -0.105,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamMouthOpenY",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamPatternMouth",
+			"Value": -1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEyeLOpen",
+			"Value": 0.2,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEyeROpen",
+			"Value": 0.2,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamSweat",
+			"Value": 0.5,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamAngleZ",
+			"Value": 10,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEyeType2",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEyeType3",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEdamame2",
+			"Value": 1,
+			"Blend": "Add"
+		},
+		{
+			"Id": "ParamEdamame",
+			"Value": -1,
+			"Blend": "Add"
+		}
+	]
+}
