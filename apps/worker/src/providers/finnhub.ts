@@ -23,23 +23,44 @@ type FinnhubQuote = {
   pc: number;
 };
 
-export async function fetchQuotes(symbols: readonly string[]): Promise<RawQuote[]> {
+/**
+ * Quotes for a batch of symbols, fetched in parallel.
+ *
+ * `providerId` keeps separate batches on separate health records and
+ * circuit breakers: index symbols (SPX, NDX, …) aren't on Finnhub's free
+ * plan and their requests hang until the timeout, so sharing one breaker
+ * with the equities let every index timeout trip it and block equity
+ * quotes too. Requests run concurrently because the adapter's timeout
+ * covers the whole batch — eight sequential round trips from a far-away
+ * host could overrun it. A symbol that fails is skipped, not fatal.
+ */
+export async function fetchQuotes(
+  symbols: readonly string[],
+  providerId = 'finnhub-quote',
+): Promise<RawQuote[]> {
   const token = key();
-  return callProvider({ id: 'finnhub-quote', configured: Boolean(token) }, async () => {
-    const out: RawQuote[] = [];
-    for (const symbol of symbols) {
-      const q = await fetchJson<FinnhubQuote>(
-        `${BASE}/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`,
-      );
-      if (!q.c) continue;
-      out.push({
-        symbol,
-        price: q.c,
-        change: q.d ?? q.c - q.pc,
-        changePct: q.dp ?? ((q.c - q.pc) / q.pc) * 100,
-      });
+  return callProvider({ id: providerId, configured: Boolean(token) }, async () => {
+    const settled = await Promise.allSettled(
+      symbols.map(async (symbol) => {
+        const q = await fetchJson<FinnhubQuote>(
+          `${BASE}/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`,
+        );
+        if (!q.c) return null;
+        return {
+          symbol,
+          price: q.c,
+          change: q.d ?? q.c - q.pc,
+          changePct: q.dp ?? ((q.c - q.pc) / q.pc) * 100,
+        } satisfies RawQuote;
+      }),
+    );
+    const out = settled.flatMap((r) => (r.status === 'fulfilled' && r.value ? [r.value] : []));
+    if (out.length === 0) {
+      const firstError = settled.find((r) => r.status === 'rejected');
+      throw firstError?.status === 'rejected'
+        ? firstError.reason
+        : new Error('no quotes populated');
     }
-    if (out.length === 0) throw new Error('no quotes populated');
     return out;
   });
 }

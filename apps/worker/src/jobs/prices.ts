@@ -23,9 +23,9 @@ function toTicker(q: RawQuote, names: Record<string, string>): Ticker {
   };
 }
 
-async function quotesFor(symbols: readonly string[]): Promise<RawQuote[]> {
+async function quotesFor(symbols: readonly string[], providerId?: string): Promise<RawQuote[]> {
   try {
-    return await fetchQuotes(symbols);
+    return await fetchQuotes(symbols, providerId);
   } catch (err) {
     if (!fixturesEnabled()) throw err;
     log.debug('prices', `provider unavailable, using fixture (${(err as Error).message})`);
@@ -46,7 +46,12 @@ export async function runPrices(): Promise<void> {
     .slice(0, 5);
   await cache.set(cacheKey('market', 'snapshot'), snapshot, PRICE_TTL_SEC);
 
-  const indexQuotes = await quotesFor(INDEX_SYMBOLS.filter((s) => s !== 'RCHAN'));
+  // Own breaker: index symbols aren't on Finnhub's free plan, and their
+  // timeouts mustn't pause equity quotes (see fetchQuotes).
+  const indexQuotes = await quotesFor(
+    INDEX_SYMBOLS.filter((s) => s !== 'RCHAN'),
+    'finnhub-index',
+  );
   const indices: MarketIndex[] = indexQuotes.map((q) => ({
     ...toTicker(q, INDEX_NAMES),
     spark: fixtureSpark(q.symbol, SPARK_POINTS),

@@ -15,3 +15,8 @@ out/
 
 # Local env copy without the leading dot — holds real API keys.
 /env
+
+.vercel
+
+# Railway worker variables (secrets) — generated locally, pasted into Railway.
+.env.railway
