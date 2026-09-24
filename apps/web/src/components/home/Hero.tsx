@@ -31,7 +31,9 @@ export function Hero({ snapshot }: { snapshot: ApiEnvelope<Ticker[]> }) {
     <section className="relative isolate overflow-hidden">
       <HeroBackground />
 
-      <div className="page-container px-5 pb-16 pt-14 lg:px-10 lg:pt-20">
+      {/* Top padding clears the fixed nav island (~88px) on top of the
+          original 56/80px, so the footage runs up behind the nav. */}
+      <div className="page-container px-5 pb-16 pt-[144px] lg:px-10 lg:pt-[168px]">
         {/* `text-on-media` on the copy that sits over the video plate — the
             badge, headline and lead. It buys contrast at the glyph edge so
             the backdrop doesn't have to be darkened to compensate. */}

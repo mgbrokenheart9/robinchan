@@ -45,7 +45,9 @@ const JOBS: Record<string, Job> = {
   // Expired quotes, pending transactions, limit orders.
   orders: { name: 'orders', everyMs: 30_000, run: runOrders },
   channels: { name: 'channels', everyMs: 10 * 60_000, run: runChannels },
-  clips: { name: 'clips', everyMs: 5 * 60_000, run: runClips },
+  // 15 min, not 5: new uploads from these channels land a few times an
+  // hour at most, and each run spends YouTube quota (see providers/youtube.ts).
+  clips: { name: 'clips', everyMs: 15 * 60_000, run: runClips },
   calendar: { name: 'calendar', everyMs: 6 * 60 * 60_000, run: runCalendar },
   retention: {
     name: 'retention',

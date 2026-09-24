@@ -66,6 +66,12 @@
     --glass-border: rgba(31, 41, 55, 0.08);
     --glass-border-hover: rgba(31, 41, 55, 0.14);
     --glass-highlight: rgba(255, 255, 255, 0.9);
+
+    /* Landing nav island — more opaque than a content pane, since page
+       content scrolls right under it. */
+    --nav-glass-bg: rgba(255, 255, 255, 0.72);
+    --nav-glass-shadow:
+      0 12px 34px -10px rgba(31, 41, 55, 0.22), inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
     --glass-shadow:
       inset 0 1px 0 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 0 rgba(31, 41, 55, 0.04),
       0 24px 60px -30px rgba(31, 41, 55, 0.28);
@@ -130,6 +136,11 @@
     --glass-border: rgba(255, 255, 255, 0.14);
     --glass-border-hover: rgba(255, 255, 255, 0.22);
     --glass-highlight: rgba(255, 255, 255, 0.14);
+
+    --nav-glass-bg: rgba(17, 20, 15, 0.72);
+    --nav-glass-shadow:
+      0 12px 34px -10px rgba(0, 0, 0, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.35);
     --glass-shadow:
       inset 0 1px 0 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
       0 24px 60px -30px rgba(0, 0, 0, 0.95);
@@ -400,6 +411,192 @@
       background-image: none;
       border-color: theme(colors.text-3);
     }
+  }
+
+  /* ---- landing nav island (`<LandingHeader>`) ----
+     Wide and chrome-less over the hero; once the page scrolls it contracts
+     into a centred glass pill. The pill's glass is its own layer so it can
+     fade/scale in independently of the content width animating. */
+  .nav-isle {
+    @apply relative mx-auto flex items-center rounded-full px-4;
+    max-width: 1360px;
+    height: 72px;
+    transition:
+      max-width 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+      height 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .nav-isle.is-compact {
+    max-width: 720px;
+    height: 54px;
+  }
+
+  .nav-isle-glass {
+    @apply pointer-events-none absolute inset-0 rounded-full border;
+    background-color: var(--nav-glass-bg);
+    border-color: var(--glass-border);
+    box-shadow: var(--nav-glass-shadow);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6);
+    backdrop-filter: blur(22px) saturate(1.6);
+    opacity: 0;
+    filter: blur(6px);
+    transform: scale(0.965);
+    transition:
+      opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      filter 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .nav-isle.is-compact .nav-isle-glass {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  /* Link with a hairline that draws in from the left on hover; the current
+     page keeps it drawn. */
+  .navlink {
+    @apply relative rounded-full text-[14px] text-text-2 transition-colors duration-200 hover:text-text;
+    padding: 6px 11px;
+  }
+
+  .navlink-rule {
+    @apply pointer-events-none absolute h-px bg-current;
+    left: 11px;
+    right: 11px;
+    bottom: 3px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .navlink:hover .navlink-rule,
+  .navlink[aria-current='page'] .navlink-rule {
+    transform: scaleX(1);
+  }
+
+  .navlink[aria-current='page'] {
+    @apply text-text;
+  }
+
+  /* Before the glass pill forms, links sit straight on the hero footage —
+     same halo as the hero copy (`.text-on-media`) so they stay legible. */
+  .nav-isle:not(.is-compact) .navlink {
+    text-shadow: var(--media-text-shadow);
+  }
+
+  /* Gradient pill CTA. Stays inside the brand lime family end to end so
+     the dark `accent-ink` label keeps its contrast across the whole pill. */
+  .btn-nav-cta {
+    @apply relative inline-flex items-center gap-2 overflow-hidden rounded-full font-medium text-accent-ink;
+    height: 38px;
+    padding-inline: 16px;
+    font-size: 0.85rem;
+    letter-spacing: -0.01em;
+    background-image: linear-gradient(115deg, #eefbc4 0%, #d4f450 48%, #a3e635 100%);
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.55);
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .btn-nav-cta:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.55),
+      0 0 24px rgb(var(--c-accent) / 0.4);
+  }
+
+  /* Arrow "echo": on hover the arrow slides out to the right while a copy
+     slides in from the left, so it reads as a continuous forward motion. */
+  .cta-arrow {
+    @apply relative inline-flex h-4 w-4 overflow-hidden;
+  }
+
+  .cta-arrow > * {
+    @apply absolute inset-0;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .cta-arrow > :last-child {
+    transform: translateX(-120%);
+  }
+
+  .btn-nav-cta:hover .cta-arrow > :first-child {
+    transform: translateX(120%);
+  }
+
+  .btn-nav-cta:hover .cta-arrow > :last-child {
+    transform: none;
+  }
+
+  /* ---- peeking companion (`<PeekingCompanion>`) ----
+     She leans in from past the right edge: pivoting on the bottom-right
+     corner tips her head toward the page, and only her near side clears
+     the edge. Out = fully off screen, upright. */
+  .peek-figure {
+    transform-origin: 100% 100%;
+    transform: translateX(105%) rotate(0deg);
+    transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .peek-figure[data-state='in'] {
+    transform: translateX(48%) rotate(-7deg);
+    /* A little "hi!" nod once she's in. Uses the standalone `rotate`
+       property so it stacks on the transform instead of fighting the
+       slide-in transition. */
+    animation: peek-hello 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.8s both;
+  }
+
+  @keyframes peek-hello {
+    0%,
+    100% {
+      rotate: 0deg;
+    }
+    30% {
+      rotate: -4deg;
+    }
+    60% {
+      rotate: 1.5deg;
+    }
+  }
+
+  .peek-bubble {
+    transform-origin: 100% 100%;
+    opacity: 0;
+    transform: translate(16px, 10px) scale(0.92);
+    pointer-events: none;
+    transition:
+      opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .peek-bubble[data-state='in'] {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  /* Small glass tail under the bubble, pointing down at her head. */
+  .peek-bubble-tail {
+    position: absolute;
+    right: 96px;
+    bottom: -7px;
+    width: 14px;
+    height: 14px;
+    transform: rotate(45deg);
+    background-color: var(--glass-bg);
+    border-right: 1px solid var(--glass-border);
+    border-bottom: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(40px);
+    backdrop-filter: blur(40px);
+  }
+
+  .peek-bubble[data-placement='side'] .peek-bubble-tail {
+    right: -7px;
+    bottom: auto;
+    top: 28px;
+    transform: rotate(-45deg);
   }
 
   /* Table rows and dense lists stay sharper (design.md §2). */

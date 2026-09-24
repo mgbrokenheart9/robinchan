@@ -15,9 +15,27 @@ import { usePoll } from '@/lib/usePoll';
  * - The iframe only mounts once the card enters the viewport, plus `loading="lazy"`
  * - Starts muted; autoplay with sound would be blocked by the browser anyway
  * - Channel tabs swap `videoId` without a page reload
- * - If `videoId` isn't available yet or the iframe fails, show a poster +
- *   button to YouTube — `videoId` comes from the API, never hardcoded here
+ * - If `videoId` isn't confirmed yet, embed the channel's live stream by
+ *   channel id instead (`embed/live_stream?channel=`) — YouTube resolves the
+ *   current stream itself, no API quota spent
+ * - With neither, or if the iframe fails, show a poster + button to YouTube
+ *   — ids come from the API, never hardcoded here
  */
+
+/** Channel ids are `UC` + 22 url-safe chars; anything else isn't embedded. */
+const CHANNEL_ID = /^UC[\w-]{22}$/;
+
+function embedSrc(channel: MediaChannel | null): string | null {
+  // youtube-nocookie + mute=1: autoplay with sound would be blocked anyway.
+  const params = 'autoplay=1&mute=1&playsinline=1&rel=0';
+  if (channel?.videoId) {
+    return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(channel.videoId)}?${params}`;
+  }
+  if (channel?.channelId && CHANNEL_ID.test(channel.channelId)) {
+    return `https://www.youtube-nocookie.com/embed/live_stream?channel=${channel.channelId}&${params}`;
+  }
+  return null;
+}
 export function LiveVideo({ initial }: { initial: ApiEnvelope<MediaChannel[]> }) {
   const envelope = usePoll<MediaChannel[]>('/api/media/channels', initial, 10 * 60_000);
   const channels = envelope.data;
@@ -44,10 +62,11 @@ export function LiveVideo({ initial }: { initial: ApiEnvelope<MediaChannel[]> })
   }, [visible]);
 
   const active = channels.find((c) => c.id === activeId) ?? channels[0] ?? null;
+  const src = embedSrc(active);
 
   useEffect(() => {
     setFailed(false);
-  }, [active?.videoId]);
+  }, [src]);
 
   return (
     <section ref={cardRef} className="card overflow-hidden">
@@ -59,6 +78,10 @@ export function LiveVideo({ initial }: { initial: ApiEnvelope<MediaChannel[]> })
               <PulseDot />
               LIVE
             </span>
+          ) : src ? (
+            // Channel-level embed: YouTube picks the stream, so it isn't
+            // confirmed live — label it as the channel feed, not LIVE.
+            <span className="font-mono text-[11px] text-text-3">channel live feed</span>
           ) : (
             <span className="font-mono text-[11px] text-text-3">no active stream</span>
           )
@@ -66,11 +89,10 @@ export function LiveVideo({ initial }: { initial: ApiEnvelope<MediaChannel[]> })
       />
 
       <div className="flex h-[352px] items-center justify-center bg-black">
-        {active && active.videoId && visible && !failed ? (
+        {active && src && visible && !failed ? (
           <iframe
-            key={active.videoId}
-            // youtube-nocookie + mute=1: autoplay with sound would be blocked anyway.
-            src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(active.videoId)}?autoplay=1&mute=1&playsinline=1&rel=0`}
+            key={src}
+            src={src}
             title={`Live broadcast: ${sanitizeText(active.label, 40)}`}
             loading="lazy"
             allow="accelerometer; autoplay; encrypted-media; picture-in-picture"

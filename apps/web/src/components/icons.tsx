@@ -19,6 +19,7 @@ import {
   Lock,
   Menu,
   MessageSquareText,
+  Play,
   Moon,
   RotateCw,
   SendHorizontal,
@@ -65,6 +66,8 @@ export const ExternalIcon = wrap(ExternalLink, 14);
 // Light / dark theme switch.
 export const SunIcon = wrap(Sun, 18);
 export const MoonIcon = wrap(Moon, 18);
+/** Placeholder on a video clip that has no thumbnail yet. */
+export const PlayIcon = wrap(Play, 18);
 
 // Floating chrome on the full-screen `/robinchan` chat.
 export const SmileIcon = wrap(Smile, 16);

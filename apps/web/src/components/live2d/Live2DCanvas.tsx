@@ -15,6 +15,8 @@ export type Live2DHandle = {
   speak: (audio: AudioBuffer | ArrayBuffer, onProgress?: (elapsedSec: number) => void) => Promise<void>;
   /** Cuts off whatever she's saying and closes her mouth. */
   stopSpeaking: () => void;
+  /** Points her head and eyes at a spot in canvas coordinates. */
+  lookAt: (x: number, y: number) => void;
 };
 
 export type StageStatus = 'loading' | 'ready' | 'unsupported' | 'failed';
@@ -89,6 +91,9 @@ export function Live2DCanvas({
         playbackRef.current?.stop();
         playbackRef.current = null;
         mouthRef.current = 0;
+      },
+      lookAt(x: number, y: number) {
+        modelRef.current?.focus?.(x, y);
       },
     }),
     [],

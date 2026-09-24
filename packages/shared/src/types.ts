@@ -104,6 +104,8 @@ export type NewsItem = {
   source: string;
   publishedAt: string;
   pinned?: boolean;
+  /** Article thumbnail from the provider, when it sends one. */
+  image?: string;
 };
 
 /* ---------- media ---------- */
@@ -116,6 +118,12 @@ export type MediaChannel = {
   live: boolean;
   /** Target of the 'Open on YouTube' button when the iframe can't load. */
   url: string;
+  /**
+   * YouTube channel id. Lets the frontend embed the channel's current live
+   * stream (`embed/live_stream?channel=`) when `videoId` isn't confirmed yet
+   * — that embed resolves the stream on YouTube's side and costs no API quota.
+   */
+  channelId?: string;
 };
 
 export type MediaClip = {

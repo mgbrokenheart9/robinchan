@@ -338,13 +338,14 @@ export class PgDb implements Db {
         if (dupe.rowCount) continue;
         const res = await client.query(
           `insert into news_items
-             (id, external_id, title_hash, cat, title, short, symbols, sentiment, url, source, pinned, published_at)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             (id, external_id, title_hash, cat, title, short, symbols, sentiment, url, source, pinned, published_at, image)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
            on conflict (external_id) do update
              set sentiment = excluded.sentiment,
                  pinned = excluded.pinned,
                  title = excluded.title,
-                 short = excluded.short
+                 short = excluded.short,
+                 image = coalesce(excluded.image, news_items.image)
            returning (xmax = 0) as is_new`,
           [
             item.id,
@@ -359,6 +360,7 @@ export class PgDb implements Db {
             item.source,
             item.pinned ?? false,
             item.publishedAt,
+            item.image ?? null,
           ],
         );
         if (res.rows[0]?.is_new) inserted += 1;
@@ -741,6 +743,7 @@ function rowToNews(r: Record<string, unknown>): NewsItem {
     source: String(r.source),
     pinned: Boolean(r.pinned),
     publishedAt: new Date(r.published_at as string).toISOString(),
+    image: r.image ? String(r.image) : undefined,
   };
 }
 

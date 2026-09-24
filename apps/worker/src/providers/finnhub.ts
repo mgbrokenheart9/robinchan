@@ -53,6 +53,7 @@ type FinnhubNews = {
   related: string;
   source: string;
   url: string;
+  image: string;
 };
 
 export async function fetchNews(limit: number): Promise<NewsItem[]> {
@@ -73,6 +74,7 @@ export async function fetchNews(limit: number): Promise<NewsItem[]> {
       url: n.url,
       source: n.source || 'Finnhub',
       publishedAt: new Date(n.datetime * 1000).toISOString(),
+      image: n.image || undefined,
     }));
   });
 }

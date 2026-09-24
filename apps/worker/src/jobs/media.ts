@@ -5,7 +5,8 @@ import { fetchChannels, fetchClips } from '../providers/youtube.js';
 import { log } from '../lib/log.js';
 
 export const CHANNELS_TTL_SEC = 900;
-export const CLIPS_TTL_SEC = 600;
+// Outlives the 15-minute clip schedule, so a slow run never empties the panel.
+export const CLIPS_TTL_SEC = 1800;
 
 /** Video channel status is checked every 10 minutes (brief §8). */
 export async function runChannels(): Promise<void> {

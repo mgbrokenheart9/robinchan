@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 
 import { CompanionDock } from '@/components/companion/CompanionDock';
+import { PeekingCompanion } from '@/components/companion/PeekingCompanion';
 import { MenuIcon } from '@/components/icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectButton, WalletPicker } from '@/components/wallet/ConnectButton';
@@ -118,6 +119,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main id="content" className="px-5 pb-24 pt-8 lg:px-10">
         <div className="mx-auto w-full max-w-[1112px]">{children}</div>
       </main>
+
+      {/* Lives in the shell so the Live2D model survives page changes. */}
+      <PeekingCompanion />
     </div>
   );
 }

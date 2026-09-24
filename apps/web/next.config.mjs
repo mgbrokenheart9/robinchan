@@ -82,6 +82,19 @@ const nextConfig = {
     // Next 16 narrowed the default to [75]; every <Image> here asks for 95,
     // which would otherwise be silently downgraded.
     qualities: [75, 95],
+    // News thumbnails (Finnhub's general feed: Reuters, CNBC, Bloomberg).
+    // They go through the optimizer, which fetches them server-side and
+    // serves them from this origin — so `img-src` in the CSP doesn't have
+    // to open up. An explicit host list, not a wildcard, so the optimizer
+    // can't be used as an open proxy. Keep in sync with NEWS_IMAGE_HOSTS
+    // in src/components/NewsCard.tsx.
+    remotePatterns: [
+      { protocol: 'https', hostname: 'static2.finnhub.io' },
+      { protocol: 'https', hostname: 'image.cnbcfm.com' },
+      { protocol: 'https', hostname: 'data.bloomberglp.com' },
+      // Highlight clip thumbnails (`ClipCard`).
+      { protocol: 'https', hostname: 'i.ytimg.com', pathname: '/vi/**' },
+    ],
   },
   async headers() {
     return [

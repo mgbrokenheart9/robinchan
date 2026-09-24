@@ -93,6 +93,7 @@ create table if not exists watchlists (
 -- ---- Trade / Heat / Portfolio additions ------------------------------------
 -- The \`orders\` table serves all three pages: the Trade page's tabs, the
 -- Portfolio history, and cost basis (Trade-Heat-Portfolio brief §9).
+alter table news_items add column if not exists image text;
 alter table orders add column if not exists address       text;
 alter table orders add column if not exists order_type    text not null default 'market';
 alter table orders add column if not exists source        text not null default 'form';

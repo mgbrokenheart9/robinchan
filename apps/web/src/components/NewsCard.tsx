@@ -1,11 +1,54 @@
 'use client';
 
+import Image from 'next/image';
 import type { MediaClip, NewsItem } from '@robinchan/shared';
 import { formatDuration, relativeTime, sentimentBucket } from '@robinchan/shared';
 
-import { ExternalIcon } from '@/components/icons';
+import { ExternalIcon, PlayIcon } from '@/components/icons';
+import { TickerLogo } from '@/components/TickerCard';
 import { SentimentDot, cx } from '@/components/ui';
 import { safeUrl, sanitizeText } from '@/lib/sanitize';
+
+/**
+ * Thumbnail hosts the image optimizer is allowed to fetch — keep in sync
+ * with `images.remotePatterns` in next.config.mjs. A thumbnail from any
+ * other host is skipped (the optimizer would refuse it anyway) and the row
+ * falls back to a company logo.
+ */
+const NEWS_IMAGE_HOSTS = new Set(['static2.finnhub.io', 'image.cnbcfm.com', 'data.bloomberglp.com']);
+
+function thumbnail(item: NewsItem): string | null {
+  const href = item.image ? safeUrl(item.image) : null;
+  if (!href) return null;
+  try {
+    return NEWS_IMAGE_HOSTS.has(new URL(href).hostname) ? href : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every row carries a picture: the article's own thumbnail when the
+ * provider sent one, otherwise the logo of the first company it's about
+ * (Robinchan's own mark for market-wide stories with no ticker).
+ */
+function NewsMedia({ item }: { item: NewsItem }) {
+  const src = thumbnail(item);
+  if (!src) {
+    // A bare logo, no tile behind it — the slot keeps the thumbnail's width
+    // so logos and photos still line up down the feed.
+    return (
+      <span className="flex h-[52px] w-[76px] shrink-0 items-center justify-center">
+        <TickerLogo symbol={item.symbols[0] ?? 'RCHAN'} size={40} />
+      </span>
+    );
+  }
+  return (
+    <span className="relative h-[52px] w-[76px] shrink-0 overflow-hidden rounded-tile border border-border-soft bg-surface-2">
+      <Image src={src} alt="" fill sizes="76px" className="object-cover" />
+    </span>
+  );
+}
 
 const CAT_TONE: Record<NewsItem['cat'], string> = {
   SEC: 'border-border text-text',
@@ -51,6 +94,7 @@ export function NewsCard({ item, now }: { item: NewsItem; now: number | null }) 
             </span>
           </div>
         </div>
+        <NewsMedia item={item} />
       </div>
     </>
   );
@@ -88,7 +132,24 @@ export function ClipCard({ clip, now }: { clip: MediaClip; now: number | null })
         className="block"
         aria-disabled={href ? undefined : true}
       >
-        <p className="line-clamp-2 text-[13px] leading-[1.4] text-text">{title}</p>
+        <div className="flex items-start gap-3">
+          {/* YouTube's own 16:9 thumbnail; a clip without a confirmed video
+              id (no API key) shows a play glyph instead. */}
+          <span className="relative flex h-[54px] w-[96px] shrink-0 items-center justify-center overflow-hidden rounded-row border border-border-soft bg-surface">
+            {clip.videoId ? (
+              <Image
+                src={`https://i.ytimg.com/vi/${encodeURIComponent(clip.videoId)}/mqdefault.jpg`}
+                alt=""
+                fill
+                sizes="96px"
+                className="object-cover"
+              />
+            ) : (
+              <PlayIcon className="text-text-3" />
+            )}
+          </span>
+          <p className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-[1.4] text-text">{title}</p>
+        </div>
         <div className="mt-2.5 flex items-center gap-2 font-mono text-[11px] text-text-3">
           <span className="truncate">{sanitizeText(clip.channel, 24)}</span>
           {clip.durationSec > 0 ? (
