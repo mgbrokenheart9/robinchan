@@ -2,7 +2,6 @@
 
 A Live2D character companion market for tokenized stocks on Robinhood Chain.
 
-
 This implementation covers **M1 (static landing page)** and **M2 (live data)** from
 `robinchan-dev-brief.md` §17, plus the three pages of the Trade / Heat / Portfolio brief —
 **Heat**, **Portfolio** and **Trade** — with what they need from M3 and M4: wallet connect,
