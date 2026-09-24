@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import pg from 'pg';
 
 import { SCHEMA_SQL } from './schema';
@@ -41,23 +43,61 @@ export function getPgPool(): pg.Pool | null {
  * server and the worker may boot at the same moment against a fresh
  * database, so the DDL runs under an advisory lock — two concurrent
  * `create table if not exists` can still collide on the system catalog.
+ *
+ * On serverless (Vercel) every cold start is a new process, so this runs
+ * constantly — and an instance can be frozen mid-transaction while holding
+ * the lock. That once parked every request on every instance behind a dead
+ * session for minutes, and the DDL's `alter table` also queued behind the
+ * worker's writes, blocking all reads behind it. Hence:
+ *
+ * - A version check first: once this exact schema is applied, no process
+ *   takes any lock at all.
+ * - When DDL does run, `lock_timeout` makes waiters give up instead of
+ *   queueing, and `idle_in_transaction_session_timeout` lets Postgres kill
+ *   a holder that stalls. Giving up is not an error for the request: the
+ *   schema is being applied elsewhere, so it proceeds and retries later.
  */
 export function ensureSchema(pool: pg.Pool): Promise<void> {
   state.schema ??= applySchema(pool).catch((err: unknown) => {
     state.schema = undefined;
+    // 55P03 lock_not_available: another process holds the schema lock.
+    if ((err as { code?: string }).code === '55P03') return;
     throw err;
   });
   return state.schema;
 }
 
 const SCHEMA_LOCK_ID = 7_243_150;
+const SCHEMA_VERSION = createHash('sha256').update(SCHEMA_SQL).digest('hex').slice(0, 16);
+
+async function schemaIsCurrent(q: pg.Pool | pg.PoolClient): Promise<boolean> {
+  try {
+    const r = await q.query('select 1 from rc_schema_version where version = $1', [SCHEMA_VERSION]);
+    return (r.rowCount ?? 0) > 0;
+  } catch {
+    return false; // table not there yet: first run on this database
+  }
+}
 
 async function applySchema(pool: pg.Pool): Promise<void> {
+  if (await schemaIsCurrent(pool)) return;
+
   const client = await pool.connect();
   try {
     await client.query('begin');
+    await client.query("set local lock_timeout = '5s'");
+    await client.query("set local idle_in_transaction_session_timeout = '15s'");
     await client.query('select pg_advisory_xact_lock($1)', [SCHEMA_LOCK_ID]);
-    await client.query(SCHEMA_SQL);
+    await client.query(
+      'create table if not exists rc_schema_version (version text primary key, applied_at timestamptz not null default now())',
+    );
+    // Re-check under the lock: another process may have just finished.
+    if (!(await schemaIsCurrent(client))) {
+      await client.query(SCHEMA_SQL);
+      await client.query('insert into rc_schema_version (version) values ($1) on conflict do nothing', [
+        SCHEMA_VERSION,
+      ]);
+    }
     await client.query('commit');
   } catch (err) {
     await client.query('rollback').catch(() => undefined);
