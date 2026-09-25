@@ -214,7 +214,7 @@ export function ChatOverlay({
                         {option.label}
                       </span>
                       <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-text-3">
-                        Video loop
+                        {option.kind === 'image' ? 'Image' : 'Video loop'}
                       </span>
                     </span>
                   </button>

@@ -80,23 +80,6 @@
     --media-text-shadow:
       0 1px 2px rgba(255, 255, 255, 0.6), 0 2px 20px rgba(248, 250, 246, 0.85);
 
-    /* Hero footage scrim (`<HeroBackground>`). Light keeps it thin: a soft
-       wash behind the left copy column only, and a short fade at the bottom
-       so the hero still meets the next section without a hard edge. */
-    --hero-scrim:
-      linear-gradient(
-        to right,
-        rgb(248 250 246 / 0.35) 0%,
-        rgb(248 250 246 / 0.15) 40%,
-        rgb(248 250 246 / 0) 65%
-      ),
-      linear-gradient(
-        to bottom,
-        rgb(248 250 246 / 0) 0%,
-        rgb(248 250 246 / 0) 78%,
-        rgb(248 250 246 / 0.6) 90%,
-        rgb(248 250 246) 100%
-      );
 
     --scrollbar: #d5ddd6;
   }
@@ -147,26 +130,6 @@
 
     --media-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 2px 20px rgba(0, 0, 0, 0.72);
 
-    --hero-scrim:
-      radial-gradient(100% 70% at 50% 0%, rgba(212, 244, 80, 0.1), transparent 62%),
-      linear-gradient(
-        to right,
-        rgb(10 10 10 / 0.78) 0%,
-        rgb(10 10 10 / 0.5) 42%,
-        rgb(10 10 10 / 0.2) 72%,
-        rgb(10 10 10 / 0.1) 100%
-      ),
-      linear-gradient(
-        to bottom,
-        rgb(10 10 10 / 0.3) 0%,
-        rgb(10 10 10 / 0.32) 40%,
-        rgb(10 10 10 / 0.48) 55%,
-        rgb(10 10 10 / 0.64) 68%,
-        rgb(10 10 10 / 0.78) 79%,
-        rgb(10 10 10 / 0.9) 88%,
-        rgb(10 10 10 / 0.97) 95%,
-        rgb(10 10 10) 100%
-      );
 
     --scrollbar: #242424;
   }
@@ -796,7 +759,7 @@
 
 /* ---- Home hero backdrop (`<HeroBackground>`) ----
    Standby image under a video that fades in once it has frames, the layer
-   settling in with a scale + blur on load. */
+   fading in on load — no zoom, so the framing never shifts. */
 .hero-media {
   animation: hero-media-in 1.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
 }
@@ -812,7 +775,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 60%;
   opacity: 0;
   transition: opacity 1.2s ease;
 }
@@ -831,13 +793,9 @@
 
 @keyframes hero-media-in {
   from {
-    transform: scale(1.08);
-    filter: blur(14px);
     opacity: 0;
   }
   to {
-    transform: none;
-    filter: none;
     opacity: 1;
   }
 }

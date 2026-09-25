@@ -1,12 +1,14 @@
 'use client';
 
+import Image from 'next/image';
+
 import { VideoBackdrop } from './VideoBackdrop';
 
 /**
  * Backdrop behind the Live2D character on `/robinchan` (design.md §10.3) —
- * the two stage loops, with the viewer picking which one shows.
+ * the stage loops and stills, with the viewer picking which one shows.
  *
- * Both loops stay mounted and decoded, and switching is a crossfade on
+ * Every option stays mounted and decoded, and switching is a crossfade on
  * opacity rather than a `src` swap: at 960×540 two decodes are cheap, and
  * swapping sources would flash the poster (or black) mid-switch. Under
  * reduced motion the global rule in globals.css collapses the fade to an
@@ -21,8 +23,9 @@ import { VideoBackdrop } from './VideoBackdrop';
  */
 
 export const STAGE_BACKGROUNDS = [
-  { id: 'valley', label: 'Ticker valley', src: '/video/stage-1.mp4', poster: '/video/stage-1-poster.jpg' },
-  { id: 'hall', label: 'Trading hall', src: '/video/stage-2.mp4', poster: '/video/stage-2-poster.jpg' },
+  { id: 'valley', kind: 'video', label: 'Ticker valley', src: '/video/stage-1.mp4', poster: '/video/stage-1-poster.jpg' },
+  { id: 'hall', kind: 'video', label: 'Trading hall', src: '/video/stage-2.mp4', poster: '/video/stage-2-poster.jpg' },
+  { id: 'grand', kind: 'image', label: 'Grand hall', src: '/img/stage-3.png', poster: '/img/stage-3.png' },
 ] as const;
 
 export type StageBackgroundId = (typeof STAGE_BACKGROUNDS)[number]['id'];
@@ -38,18 +41,31 @@ export function StageBackdrop({
 }) {
   return (
     <div aria-hidden className={className}>
-      {STAGE_BACKGROUNDS.map((bg) => (
-        <VideoBackdrop
-          key={bg.id}
-          src={bg.src}
-          poster={bg.poster}
-          className="absolute inset-0"
-          opacity={active === bg.id ? 1 : 0}
-          filter="none"
-          playbackRate={1}
-          transitionMs={FADE_MS}
-        />
-      ))}
+      {STAGE_BACKGROUNDS.map((bg) =>
+        bg.kind === 'image' ? (
+          <div
+            key={bg.id}
+            className="pointer-events-none absolute inset-0"
+            style={{
+              opacity: active === bg.id ? 1 : 0,
+              transition: `opacity ${FADE_MS}ms ease-in-out`,
+            }}
+          >
+            <Image src={bg.src} alt="" fill sizes="100vw" className="object-cover" />
+          </div>
+        ) : (
+          <VideoBackdrop
+            key={bg.id}
+            src={bg.src}
+            poster={bg.poster}
+            className="absolute inset-0"
+            opacity={active === bg.id ? 1 : 0}
+            filter="none"
+            playbackRate={1}
+            transitionMs={FADE_MS}
+          />
+        ),
+      )}
     </div>
   );
 }
