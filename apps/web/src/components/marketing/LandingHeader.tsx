@@ -26,7 +26,9 @@ const ICON_BUTTON =
  *
  * A floating "island": fixed over the hero, wide and chrome-less at the top
  * so the hero footage runs behind it, then contracting into a centred glass
- * pill once the page scrolls (styles: `.nav-isle*` in globals.css).
+ * pill once the page scrolls (styles: `.nav-isle*` in globals.css). While
+ * wide, a page-coloured gradient (`.nav-scrim`) keeps the links legible over
+ * the footage.
  */
 export function LandingHeader() {
   const [scrolled, setScrolled] = useState(false);
@@ -46,6 +48,8 @@ export function LandingHeader() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-4">
+      <span aria-hidden className={cx('nav-scrim', (scrolled || open) && 'is-hidden')} />
+
       <div className={cx('nav-isle', (scrolled || open) && 'is-compact')}>
         <span className="nav-isle-glass" aria-hidden />
 

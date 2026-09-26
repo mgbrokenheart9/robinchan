@@ -30,7 +30,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero snapshot={snapshot} />
+      <Hero />
 
       {/* Sections are spaced with `.section-y` rather than the small `py-4`
           this page used to run everywhere. The dashboard packs modules tight

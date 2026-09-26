@@ -416,6 +416,29 @@
     transform: none;
   }
 
+  /* Before the pill forms, the nav sits straight on the hero footage, and a
+     text-shadow alone can't hold the links over the bright hall. This wash
+     in the page colour (light on light, near-black on dark) sits behind the
+     wide nav only, fading out to clear footage well before the headline, and
+     hands over to the pill's glass once the page scrolls. */
+  .nav-scrim {
+    @apply pointer-events-none absolute inset-x-0 top-0;
+    z-index: -1;
+    height: 170px;
+    background: linear-gradient(
+      to bottom,
+      rgb(var(--c-bg) / 0.92) 0%,
+      rgb(var(--c-bg) / 0.85) 38%,
+      rgb(var(--c-bg) / 0.45) 66%,
+      rgb(var(--c-bg) / 0) 100%
+    );
+    transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .nav-scrim.is-hidden {
+    opacity: 0;
+  }
+
   /* Link with a hairline that draws in from the left on hover; the current
      page keeps it drawn. */
   .navlink {
@@ -445,6 +468,7 @@
   /* Before the glass pill forms, links sit straight on the hero footage —
      same halo as the hero copy (`.text-on-media`) so they stay legible. */
   .nav-isle:not(.is-compact) .navlink {
+    @apply text-text;
     text-shadow: var(--media-text-shadow);
   }
 
@@ -759,14 +783,38 @@
 
 /* ---- Home hero backdrop (`<HeroBackground>`) ----
    Standby image under a video that fades in once it has frames, the layer
-   fading in on load — no zoom, so the framing never shifts. */
+   fading in on load — no zoom, so the framing never shifts. A size
+   container, so the frame can fit itself inside the hero. */
 .hero-media {
+  container: hero-media / size;
   animation: hero-media-in 1.9s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
 }
 
+/* The whole 16:9 frame always fits inside the hero — never cropped, never
+   zoomed — like `object-fit: contain`, but on the box so its edges can be
+   feathered. When the hero is taller than 16:9 the frame spans the full
+   width, pinned to the top, and its bottom edge fades into the blurred copy
+   behind it. */
 .hero-media-frame {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 50%;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  transform: translateX(-50%);
+  -webkit-mask-image: linear-gradient(180deg, #000 88%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 88%, transparent 100%);
+}
+
+/* When the hero is wider than 16:9 the frame fits to its height instead,
+   centred, and fades into the blurred copy on both sides. */
+@container hero-media (min-aspect-ratio: 16 / 9) {
+  .hero-media-frame {
+    width: auto;
+    height: 100%;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
+  }
 }
 
 .hero-media-frame video {
@@ -784,7 +832,6 @@
 }
 
 .hero-media-blur {
-  display: none;
   position: absolute;
   inset: -8%;
   filter: blur(30px) saturate(104%);
@@ -804,13 +851,12 @@
    Anchor it to the bottom at a sane scale instead and feather its top edge
    into a blurred copy of the same frame, which matches exactly. */
 @media (max-width: 900px) and (orientation: portrait) {
-  .hero-media-blur {
-    display: block;
-  }
-
   .hero-media-frame {
     top: auto;
+    bottom: 0;
+    width: 100%;
     height: 64svh;
+    aspect-ratio: auto;
     -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.6) 9%, #000 20%);
     mask-image: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.6) 9%, #000 20%);
   }

@@ -3,9 +3,13 @@
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
-/** Hosted on R2 rather than in `/public` — a 6MB loop has no business in the deploy bundle. */
-const VIDEO =
-  'https://pub-c928cd1d1bb64d078d179ddfd5b29169.r2.dev/Chibi_girl_walking_forward_1080p_20260925000425.mp4';
+/**
+ * Served from `/public`, not R2: some Indonesian ISPs DNS-block `*.r2.dev`,
+ * which left those visitors on the standby image forever. Remuxed with
+ * `+faststart` (moov first, audio dropped) so playback starts without
+ * fetching the tail of the file first.
+ */
+const VIDEO = '/video/hero.mp4';
 /** The clip's standby frame. */
 const POSTER = '/img/hero-standby.png';
 
@@ -23,8 +27,9 @@ const POSTER = '/img/hero-standby.png';
  *   asked for again on the first touch or click.
  * - Reduced motion never starts the video (brief §7, design.md §8); the
  *   standby image stands in.
- * - On a phone held upright a 16:9 clip would crop to a sliver, so it's
- *   bottom-anchored instead, feathered into a blurred copy of the same frame.
+ * - The frame keeps the footage's own 16:9 instead of covering the hero, so
+ *   nothing is zoomed or cropped; the blurred copy fills the rest. On a phone
+ *   held upright it's bottom-anchored instead, for the same reason.
  *
  * Decorative only, so it's hidden from assistive tech.
  */
@@ -60,7 +65,8 @@ export function HeroBackground() {
 
   return (
     <div aria-hidden className="hero-media pointer-events-none absolute inset-0 -z-10">
-      {/* Portrait phones only: fills the space above the bottom-anchored clip. */}
+      {/* Fills whatever the 16:9 frame doesn't: below it on desktop, above the
+          bottom-anchored clip on portrait phones. */}
       <div className="hero-media-blur">
         <Image src={POSTER} alt="" fill sizes="100vw" className="object-cover" />
       </div>

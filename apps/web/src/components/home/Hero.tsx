@@ -1,22 +1,21 @@
 import Link from 'next/link';
-import type { ApiEnvelope, Ticker } from '@robinchan/shared';
 
 import { ArrowRightIcon } from '@/components/icons';
 import { PulseDot } from '@/components/ui';
 
 import { HeroBackground } from './HeroBackground';
-import { MarketSnapshot } from './MarketSnapshot';
 
 /**
- * Hero + "Market now" panel (brief §4 blocks 1–2).
+ * Hero (brief §4 block 1).
  *
  * The headline spans the full container instead of sitting in the artboard's
- * 660px left column, and the lead/CTA/panel row runs underneath it. At the
+ * 660px left column, with the lead and CTAs underneath it. At the
  * landing-page display size (`.t-display`, up to 100px) a 660px column would
  * break "Read the market." across two lines and cost the copy its rhythm —
- * the three-beat triad only lands if each beat is one line. Giving the
- * headline the whole width and dropping the two-column split to the row
- * below keeps the artboard's 660/412 proportions where they still matter.
+ * the three-beat triad only lands if each beat is one line.
+ *
+ * The "Market now" panel that used to sit beside the CTAs lives on the
+ * `/robinchan` chat page instead, so the footage here stays unobstructed.
  *
  * This is the one section on the landing page allowed a full-bleed moving
  * background (design.md §10, §10.3) — `<HeroBackground>`, a slow dolly
@@ -26,9 +25,12 @@ import { MarketSnapshot } from './MarketSnapshot';
  * that visual weight; the sections past it get the static blob field
  * instead.
  */
-export function Hero({ snapshot }: { snapshot: ApiEnvelope<Ticker[]> }) {
+export function Hero() {
   return (
-    <section className="relative isolate overflow-hidden">
+    /* Full viewport height on desktop so the 16:9 footage fits the hero
+       whole (see `.hero-media-frame`) instead of shrinking to the copy's
+       height and leaving wide blurred margins. */
+    <section className="relative isolate overflow-hidden lg:min-h-[100svh]">
       <HeroBackground />
 
       {/* Top padding clears the fixed nav island (~88px) on top of the
@@ -50,27 +52,21 @@ export function Hero({ snapshot }: { snapshot: ApiEnvelope<Ticker[]> }) {
           <span className="text-accent-fg">Sign it yourself.</span>
         </h1>
 
-        <div className="grid-hero items-start">
-          <div className="max-w-hero">
-            <p className="t-lead text-on-media mb-9 max-w-[560px] animate-hero-in text-text [animation-delay:120ms]">
-              Robinchan reads tokenized stocks, news, and on-chain activity on one screen. Build
-              orders in plain sentences, then you&apos;re the one who presses sign in your own
-              wallet. No custody, no silent execution.
-            </p>
+        <div className="max-w-hero">
+          <p className="t-lead text-on-media mb-9 max-w-[560px] animate-hero-in text-text [animation-delay:120ms]">
+            Robinchan reads tokenized stocks, news, and on-chain activity on one screen. Build
+            orders in plain sentences, then you&apos;re the one who presses sign in your own
+            wallet. No custody, no silent execution.
+          </p>
 
-            <div className="flex animate-hero-in flex-wrap gap-3 [animation-delay:180ms]">
-              <Link href="/robinchan" className="btn-primary group">
-                Talk to Robinchan
-                <ArrowRightIcon className="transition-transform duration-200 group-hover:translate-x-0.5" />
-              </Link>
-              <Link href="/market" className="btn-ghost">
-                Check the market first
-              </Link>
-            </div>
-          </div>
-
-          <div className="animate-hero-in [animation-delay:140ms]">
-            <MarketSnapshot initial={snapshot} />
+          <div className="flex animate-hero-in flex-wrap gap-3 [animation-delay:180ms]">
+            <Link href="/robinchan" className="btn-primary group">
+              Talk to Robinchan
+              <ArrowRightIcon className="transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Link>
+            <Link href="/market" className="btn-ghost">
+              Check the market first
+            </Link>
           </div>
         </div>
       </div>
