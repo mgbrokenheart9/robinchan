@@ -67,6 +67,9 @@ const csp = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // A second, isolated dev server (the E2E scripts) needs its own build
+  // directory: Next allows one dev server per directory. Unset = `.next`.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   /**
    * Workspace packages are consumed as TypeScript source. Their internal
    * imports are extensionless, which Turbopack, `tsc` (bundler resolution)

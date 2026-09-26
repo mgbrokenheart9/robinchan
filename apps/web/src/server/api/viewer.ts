@@ -6,8 +6,10 @@ import {
   HoldingsUnavailable,
   LlmError,
   OrderError,
+  PerpError,
   resolveTier,
   type OrderUser,
+  type PerpUser,
 } from '@robinchan/core';
 
 import type { Session } from '../auth/session';
@@ -29,10 +31,16 @@ export async function orderUser(session: Session): Promise<OrderUser> {
   return { id: session.userId, address: session.address, tier: tier?.tier ?? 'free' };
 }
 
+/** The signed-in wallet as the perps pipeline sees it. */
+export function perpUser(session: Session): PerpUser {
+  return { id: session.userId, address: session.address };
+}
+
 /** Domain errors from `@robinchan/core`, mapped onto the API's error envelope. */
 export function asApiFailure(err: unknown): never {
   if (err instanceof ApiFailure) throw err;
   if (err instanceof OrderError) throw new ApiFailure(err.code, err.message, err.status, err.field);
+  if (err instanceof PerpError) throw new ApiFailure(err.code, err.message, err.status, err.field);
   if (err instanceof HeatAccessError) {
     throw new ApiFailure(err.status === 404 ? 'NOT_FOUND' : 'TIER_REQUIRED', err.message, err.status, null, {
       requiredTier: err.requiredTier,

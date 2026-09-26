@@ -23,7 +23,7 @@ const config = defineConfig([
     ],
     rules: { 'react-hooks/set-state-in-effect': 'off' },
   },
-  globalIgnores(['.next/**', 'node_modules/**', 'public/**', 'next-env.d.ts']),
+  globalIgnores(['.next/**', '.next-e2e*/**', 'node_modules/**', 'public/**', 'next-env.d.ts']),
 ]);
 
 export default config;

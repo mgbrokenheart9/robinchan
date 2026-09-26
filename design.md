@@ -276,3 +276,23 @@ The three dashboard pages from the Trade / Heat / Portfolio brief. They follow �
 **Charts read the theme at runtime.** `lightweight-charts` draws on canvas, so `useThemeColors` reads `--c-*` off `<html>` and re-applies on the `.dark` flip. Candles and the volume histogram use `up`/`down`; resting limit orders are dashed price lines in the same colors; the portfolio line is one mint line with a thin gradient. The library's logo is off and credited in text under each chart instead.
 
 **Robinchan's dock is small and stays out of the way.** A 56px avatar, bottom-right, on Heat, Portfolio and Trade only — `/market` keeps no character likeness (§6), and no likeness goes inside `<OrderPreviewCard>` (§8). Her unprompted line is a single truncated pill *beside* the avatar, so it can't cover the order ticket; it fades after nine seconds. The chat panel opens above the avatar and says what she can see ("sees: Trade · NVDA").
+
+---
+
+## 12. Perps
+
+`/perps` replaces Trade (Agri Perps brief); `/trade` redirects there. It keeps §11's rules — the four data states, the connect gate with blurred sample data, the countdown in the sign button — and this section records only what's new.
+
+**Three categories, one board.** Agri · Crypto · Stocks tabs sit over a single board, each tab counting its live markets. The markets Chainlink has no feed for on Robinhood Chain — all nine agri markets, SOL and ARB — stay on the board, dimmed, with a "No oracle" pill; the header says why in one sentence. Dropping them would read as a bug next to a brief that lists them. The page opens on BTC.
+
+**Status is a pill, and only "Open" moves.** Open carries the mint pulse dot, the card's one live signal (§8). Closed shows the last price in `text-2` with the reason — a stock's weekend, or a feed silent past its daily heartbeat — and the market's hours. A Chainlink price hours old is normal (a round comes on a 0.5% move), so age alone never closes a market. Close-only covers a paused or delisted market.
+
+**Long is mint, short is salmon**, as tints like §11's buy and sell: 15% fill with a 40% ring on the toggle, `up` at 90% and `down` at 80% on the action button.
+
+**Leverage is a slider with the market's own stops**: 1 / 5 / 10 / 20 for crypto, 1 / 3 / 5 for stocks. The value sits beside the label in mono `accent-fg`. From 20× on, the quote says in words how small a move liquidates.
+
+**The header names the feed** behind the price ("Chainlink ETH / USD") in the stats row, with a tooltip on how it updates. The chart carries each Chainlink round forward to the next, as positions are marked; a stock's weekend leaves a gap.
+
+**The two steps of an on-chain order are told in the button, not a tooltip.** The progress line walks through the wallet's transactions ("Approve USDC", "Open long ETH"), then says "Request landed. It fills at Chainlink's next ETH price — when the price moves 0.5%, or within a day." until the keeper fills it. That can take hours, so a waiting order also lives under a **Waiting** tab beside Positions, where "Take back" first says what it costs ("You get the collateral back; the $0.50 opening fee is kept") with *Keep it* and a salmon *Take it back* — then asks the wallet; the row then reads "Asked back: released by 14:05, unless its price was already observed." A cancelled order says why in a sentence: price past the limit, taken back, never priced in its window, or the feed moved to a new aggregator.
+
+**The liquidation price is salmon** in the positions table, beside PnL (mint or salmon) and funding. A position with a close on its way shows a `warning` "closing…" pill where its close button was.

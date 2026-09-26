@@ -28,7 +28,11 @@ export type ApiErrorCode =
   | 'INSUFFICIENT_GAS'
   | 'ORDER_IN_FLIGHT'
   | 'ADDRESS_MISMATCH'
-  | 'CONFLICT';
+  | 'CONFLICT'
+  /** Perps: the oracle isn't publishing (market hours) or the market is close-only. */
+  | 'MARKET_CLOSED'
+  /** Perps: the open-interest cap or the pool's free liquidity can't take the position. */
+  | 'LIQUIDITY_LIMIT';
 
 export type ApiError = {
   error: { code: ApiErrorCode; message: string };
@@ -537,7 +541,7 @@ export type PortfolioHistory = {
 
 /* ---------- companion ---------- */
 
-export type CompanionPage = 'home' | 'robinchan' | 'market' | 'heat' | 'portfolio' | 'trade';
+export type CompanionPage = 'home' | 'robinchan' | 'market' | 'heat' | 'portfolio' | 'perps';
 
 /** Page context sent with each chat message as metadata — one chat, one history. */
 export type PageContext = {

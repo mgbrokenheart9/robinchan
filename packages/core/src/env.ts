@@ -36,11 +36,16 @@ export const heatReadsEnabled = (): boolean => flag('FEATURE_HEAT_READS');
 
 export const socialHeatEnabled = (): boolean => flag('FEATURE_SOCIAL_HEAT');
 
+/**
+ * The chain as the server sees it. `RPC_URL`, when set, is the server's own
+ * endpoint (the worker, the keeper, the API's reads) — a paid provider URL
+ * with its key stays out of the browser, which uses NEXT_PUBLIC_RPC_URL.
+ */
 export function chainConfig(): ChainConfig | null {
   return resolveChainConfig({
     chainId: process.env.NEXT_PUBLIC_CHAIN_ID,
     chainName: process.env.NEXT_PUBLIC_CHAIN_NAME,
-    rpcUrl: process.env.NEXT_PUBLIC_RPC_URL,
+    rpcUrl: process.env.RPC_URL?.trim() || process.env.NEXT_PUBLIC_RPC_URL,
     explorerUrl: process.env.NEXT_PUBLIC_EXPLORER_URL,
     nativeSymbol: process.env.NEXT_PUBLIC_NATIVE_SYMBOL,
     rcEnv: rcEnv(),

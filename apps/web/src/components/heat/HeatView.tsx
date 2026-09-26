@@ -38,7 +38,7 @@ const SORTS: Array<{ id: HeatSort; label: string }> = [
  */
 export function HeatView({ initial }: { initial: ApiEnvelope<HeatBoard | null> }) {
   const s = useSession();
-  const { trading } = useConfig();
+  const { perps } = useConfig();
   const companion = useCompanion();
   const [filter, setFilter] = useState<HeatFilter>('all');
   const [sort, setSort] = useState<HeatSort>('score');
@@ -213,7 +213,7 @@ export function HeatView({ initial }: { initial: ApiEnvelope<HeatBoard | null> }
                     <HeatDetailPanel
                       symbol={row.symbol}
                       detail={detail}
-                      trading={trading}
+                      perps={perps}
                       canWatchlist={Boolean(access?.canWatchlist)}
                       watchlisted={row.watchlisted}
                       onToggleWatch={() => void toggleWatch(row.symbol, !row.watchlisted)}

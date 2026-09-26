@@ -1,25 +1,24 @@
 import 'server-only';
 
 import type { PageContext } from '@robinchan/shared';
-import { formatPct, formatPriceSmart, symbolInfo } from '@robinchan/shared';
+import { formatPct, formatPriceSmart, perpMarket } from '@robinchan/shared';
 import {
   HeatAccessError,
   buildHeatBoard,
   buildHeatDetail,
   buildPortfolio,
   fenceText,
-  getPrice,
   heatAccessFor,
-  readHoldings,
+  perpMarketViews,
+  perpPositions,
 } from '@robinchan/core';
-import { getDb } from '@robinchan/store';
 
 import type { Session } from '../auth/session';
 import { tierFor } from '../api/viewer';
 
 /**
- * The page the user is on, as data for Robinchan's prompt — so in Trade she
- * knows the open symbol, in Heat the open row, in Portfolio its contents
+ * The page the user is on, as data for Robinchan's prompt — so in Perps she
+ * knows the open market, in Heat the open row, in Portfolio its contents
  * (Trade-Heat-Portfolio §2). The page sends only *which* page and symbol;
  * every figure is looked up here, server-side, at the viewer's own access
  * level. The chat must never become a way around the heat board's gating.
@@ -29,7 +28,7 @@ export async function pageContextBlock(ctx: PageContext | undefined, session: Se
   const lines: string[] = [];
   try {
     if (ctx.page === 'heat') await heatLines(ctx.symbol ?? null, session, lines);
-    else if (ctx.page === 'trade') await tradeLines(ctx.symbol ?? null, session, lines);
+    else if (ctx.page === 'perps') await perpsLines(ctx.symbol ?? null, session, lines);
     else if (ctx.page === 'portfolio') await portfolioLines(session, lines);
     else return null;
   } catch (err) {
@@ -78,26 +77,40 @@ async function heatLines(symbol: string | null, session: Session | null, lines: 
   }
 }
 
-async function tradeLines(symbol: string | null, session: Session | null, lines: string[]): Promise<void> {
-  lines.push('Page: Trade (chart and order ticket). You never place orders yourself; the user signs.');
-  if (!symbol) return;
-  const info = symbolInfo(symbol);
-  const live = await getPrice(symbol);
+async function perpsLines(symbol: string | null, session: Session | null, lines: string[]): Promise<void> {
   lines.push(
-    `Open symbol: ${symbol}${info ? ` (${info.name})` : ''}` +
-      (live ? `, price ${formatPriceSmart(live.price)}, today ${formatPct(live.changePct)}` : ', no live price'),
+    'Page: Perps — synthetic perpetuals on crypto and US stocks, priced by Chainlink on Robinhood Chain, settled in USDC ' +
+      '(the agricultural markets are listed but untradable: Chainlink has no feed for them there). On chain an order fills at ' +
+      "Chainlink's next price for the market, which can take hours on a quiet market. " +
+      'You never open or close positions yourself; the user signs. Explain mechanics (margin, leverage, funding, liquidation) ' +
+      'but never suggest a direction, a size or a leverage.',
   );
-  if (info && !info.tradable) lines.push(`${symbol} can't be ordered here: ${info.untradableReason ?? 'not tradable'}`);
+  const def = symbol ? perpMarket(symbol) : null;
+  if (def) {
+    const market = (await perpMarketViews()).find((m) => m.symbol === def.symbol);
+    if (market) {
+      lines.push(
+        `Open market: ${def.symbol} (${def.name}${def.localName !== def.name ? `, "${def.localName}"` : ''}, ${def.category}), ${market.status}` +
+          (market.statusNote ? ` — ${market.statusNote}` : '') +
+          (market.price != null ? `; price $${formatPriceSmart(market.price)}${market.unit}` : '; no price yet') +
+          (market.change24hPct != null ? `, 24h ${formatPct(market.change24hPct)}` : '') +
+          `; funding ${(market.fundingRatePerHour * 100).toFixed(5)}% of size per hour (positive: longs pay shorts)` +
+          `; up to ${market.maxLeverage}× leverage; liquidation when losses reach 80% of a position's collateral.` +
+          (market.contract ? ` Priced by the ${market.contract} feed.` : ''),
+      );
+    }
+  }
   if (!session) {
     lines.push('The user has not connected a wallet.');
     return;
   }
-  const holdings = await readHoldings(session.address, session.userId).catch(() => null);
-  const held = holdings?.holdings.find((h) => h.symbol === symbol);
-  lines.push(held ? `The user holds ${held.qty} ${symbol}.` : `The user holds no ${symbol}.`);
-  const open = await getDb().listOrders({ userId: session.userId, statuses: ['open', 'pending'], symbol, limit: 5 });
-  for (const o of open) {
-    lines.push(`Open order: ${o.orderType} ${o.side} ${o.qty} ${o.symbol}${o.limitPrice ? ` at ${o.limitPrice}` : ''} (${o.status}).`);
+  const positions = await perpPositions({ id: session.userId, address: session.address }).catch(() => []);
+  if (!positions.length) lines.push('The user has no open perps positions.');
+  for (const p of positions.slice(0, 6)) {
+    lines.push(
+      `Open position: ${p.side} ${p.symbol} at ${p.leverage}×, collateral $${p.collateral.toFixed(2)}, entry $${formatPriceSmart(p.entryPrice)}, ` +
+        `liquidation $${formatPriceSmart(p.liquidationPrice)}, unrealized PnL ${p.unrealizedPnl == null ? 'unknown (no fresh price)' : `$${p.unrealizedPnl.toFixed(2)}`}.`,
+    );
   }
 }
 

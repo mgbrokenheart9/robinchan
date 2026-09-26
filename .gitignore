@@ -20,3 +20,6 @@ out/
 
 # Railway worker variables (secrets) — generated locally, pasted into Railway.
 .env.railway
+
+# Isolated E2E dev servers (NEXT_DIST_DIR).
+.next-e2e*/

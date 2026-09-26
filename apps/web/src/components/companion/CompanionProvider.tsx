@@ -65,7 +65,7 @@ const HINT_MS = 9_000;
 function pageFromPath(pathname: string | null): PageContext['page'] {
   if (!pathname || pathname === '/') return 'home';
   const first = pathname.split('/')[1];
-  return first === 'heat' || first === 'portfolio' || first === 'trade' || first === 'market' || first === 'robinchan'
+  return first === 'heat' || first === 'portfolio' || first === 'perps' || first === 'market' || first === 'robinchan'
     ? first
     : 'home';
 }

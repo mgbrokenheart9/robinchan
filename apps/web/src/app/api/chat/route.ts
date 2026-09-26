@@ -36,8 +36,9 @@ import { synthesize } from '@/server/companion/voice';
  * One chat everywhere (Trade-Heat-Portfolio §2): the page the message came
  * from arrives as `context`, and the server looks up what that page shows.
  * A signed-in wallet's history is kept on the server. When the message asks
- * for an order, it goes through the same parse → quote pipeline as the
- * Trade page's form, and the preview comes back alongside the reply.
+ * for a spot order (with `FEATURE_TRADING` on), it goes through the parse →
+ * quote order pipeline, and the preview comes back alongside the reply.
+ * Perps aren't traded from the chat yet (Agri Perps brief §12.6).
  *
  * Takes precedence over the `[...path]` catch-all, so it applies the same
  * security headers itself, plus a tighter per-IP limit than the read-only
@@ -60,7 +61,7 @@ const body = z.object({
   voice: z.boolean().default(true),
   context: z
     .object({
-      page: z.enum(['home', 'robinchan', 'market', 'heat', 'portfolio', 'trade']),
+      page: z.enum(['home', 'robinchan', 'market', 'heat', 'portfolio', 'perps']),
       symbol: z
         .string()
         .regex(/^[A-Za-z0-9.-]{1,12}$/)
@@ -157,9 +158,8 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 /**
- * The chat's half of the one order pipeline: the sentence is parsed into an
- * intent (function calling, nothing guessed), then quoted exactly like the
- * Trade form's intent. What the model is told about it goes in
+ * The chat's side of the spot order pipeline: the sentence is parsed into an
+ * intent (function calling, nothing guessed), then quoted by `quoteOrder`. What the model is told about it goes in
  * `<order_status>`; the numbers themselves reach the user only through the
  * preview card, which renders the server's quote.
  */

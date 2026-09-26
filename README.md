@@ -3,11 +3,15 @@
 A Live2D character companion market for tokenized stocks on Robinhood Chain.
 
 This implementation covers **M1 (static landing page)** and **M2 (live data)** from
-`robinchan-dev-brief.md` §17, plus the three pages of the Trade / Heat / Portfolio brief —
-**Heat**, **Portfolio** and **Trade** — with what they need from M3 and M4: wallet connect,
-Sign-In with Ethereum, tiers read on the server, and the order pipeline shared by the Trade page
-and Robinchan's chat. Trade sits behind `FEATURE_TRADING`, off by default. See
-[Heat, Portfolio, Trade](#heat-portfolio-trade) and [Scope boundaries](#scope-boundaries).
+`robinchan-dev-brief.md` §17, plus the pages of the Trade / Heat / Portfolio brief — **Heat**,
+**Portfolio** and **Trade** — with what they need from M3 and M4: wallet connect, Sign-In with
+Ethereum, tiers read on the server, and the order pipeline Robinchan's chat uses. **Perps**
+(`robinchan-agri-perps-brief.md`) has since replaced the Trade page: perpetual futures on crypto
+and US stocks, priced by Chainlink Data Feeds on Robinhood Chain, with its own contracts in
+`contracts/` (the brief's agricultural markets are listed, but Chainlink has no feed for them
+there yet). Perps sits behind `FEATURE_PERPS` and spot trading behind `FEATURE_TRADING`, both
+off by default. See [Heat, Portfolio, Trade](#heat-portfolio-trade), [Perps](#perps) and
+[Scope boundaries](#scope-boundaries).
 
 ---
 
@@ -39,11 +43,15 @@ Other commands: `npm run build`, `npm run typecheck`, `npm run lint`, and:
 | `npm test -w @robinchan/store` | The Postgres implementation on PGlite (Postgres in WASM): the schema upgrading an existing database, and every query the new pages use |
 | `npm run eval:parse -w @robinchan/core` | Order parsing against the real model: 30 sentences, ≥28 correct or asked back, 0 silent misparses (main brief M4). Needs `MEGALLM_API_KEY` |
 | `npx tsx scripts/e2e.mts` | Everything over HTTP with real SIWE sign-ins — see the header of the script for the server flags it expects |
+| `npx hardhat test` in `contracts/` | The perps contracts: lifecycle, which Chainlink round fills an order, taking orders back, liquidation, funding, delisting, the vault's solvency after every step, and the attacks from the security reviews |
+| `npx tsx scripts/e2e-perps.mts` | Perps over HTTP on either venue — paper, or the contracts on a local chain with the worker's keeper executing orders (see the script's header) |
 | `npm run reads -w @robinchan/worker` | Prints Robinchan's stored heat reads for review before `FEATURE_HEAT_READS` goes on |
 
-**To try Trade locally**, set `FEATURE_TRADING=true` in `.env` (and `RC_DEV_TIER=tier3` to open
-limit orders) and restart `npm run dev`. The dev venue is `paper`: orders are really signed in
-the wallet, then filled against the live price without moving anything on chain.
+**To try Perps locally**, set `FEATURE_PERPS=true` in `.env` and restart `npm run dev`. The dev
+venue is `paper`: the test-USDC button funds a virtual balance, and every open and close is
+really signed in the wallet, then filled at the live Chainlink price without moving anything on
+chain. The prices are read from Robinhood Chain mainnet — no key needed; if it can't be reached,
+dev runs on a fixture random walk flagged as such.
 
 ### Database: Vercel Postgres (Neon)
 
@@ -88,7 +96,7 @@ id that would fail to load silently.
 
 ```
 apps/
-  web/          Next.js 16 App Router — Home, Robinchan, Market, Heat, Portfolio, Trade,
+  web/          Next.js 16 App Router — Home, Robinchan, Market, Heat, Portfolio, Perps,
                 and the API (src/app/api/[...path] → src/server/api)
   worker/       Cron — pulls from providers, writes to the database
 packages/
@@ -96,7 +104,9 @@ packages/
   store/        Postgres (cache + tables) behind one interface, with the .data/ fallback
   core/         Server-side domain logic shared by web and worker: chain reads (viem),
                 tiers, holdings, cost basis, portfolio valuation, the order pipeline and
-                its venues, heat gating, and Robinchan's generated reads
+                its venues, perps (quotes, the keeper, Chainlink), heat gating, and Robinchan's
+                generated reads
+contracts/      The perps contracts — a standalone Hardhat project, outside the workspaces
 ```
 
 The API is served by Next.js route handlers. It keeps the contract of the Fastify server it
@@ -168,9 +178,12 @@ on the day the wallet is first seen) for longer ranges — never back-filled.
 
 ### Trade
 
-Behind `FEATURE_TRADING`. The form and the chat both produce an order intent and go through the
-same `quoteOrder` → sign → `recordOrder` pipeline in `packages/core/src/orders` — the same
-intent gives the same quote either way. Quotes live 30 seconds, are bound to one address, and
+Replaced by [Perps](#perps): `/trade?symbol=X` now redirects to `/perps?symbol=X`. The spot
+order pipeline below stays, for Robinchan's chat orders and Portfolio's order history.
+
+Behind `FEATURE_TRADING`. The chat produces an order intent and goes through the
+`quoteOrder` → sign → `recordOrder` pipeline in `packages/core/src/orders` — the same intent
+gave the same quote on the old Trade form. Quotes live 30 seconds, are bound to one address, and
 their countdown sits in the sign button. Nothing executes without the user's signature on that
 order; values come from the server's quote, never from the page. Pending transactions are watched
 by the worker, so an order finishes correctly after the tab closes; past two minutes the page
@@ -183,6 +196,190 @@ transaction, filled against the live price) and `uniswap-v3` (SwapRouter02 + Quo
 bound in the calldata, a deadline wrapped around it). The Uniswap adapter is written against
 the standard ABI but hasn't been run against a live deployment: the DEX and its addresses are still
 open decision #4.
+
+---
+
+## Perps
+
+`/perps` (`robinchan-agri-perps-brief.md`): perpetual futures on crypto and US stocks, priced by
+Chainlink Data Feeds on Robinhood Chain and settled in USDC against a liquidity pool. Behind
+`FEATURE_PERPS`. Every open and close is signed by the trader; the server computes every number
+that reaches a signature or a transaction, from its own prices and balances.
+
+### Markets
+
+| Category | Markets | Max leverage | Notes |
+| --- | --- | --- | --- |
+| Crypto | BTC, ETH | 20× | 24/7. Chainlink's `BTC / USD` and `ETH / USD` |
+| Stocks | AAPL, TSLA, NVDA, AMZN, GOOGL, MSFT, META | 5× | Robinhood's tokenized stocks, 24/5 (Sunday 20:00 to Friday 20:00 New York). The feeds report total return value, so splits and dividends need nothing on chain |
+| Crypto | SOL, ARB | — | Listed but not tradable: no Chainlink feed on Robinhood Chain |
+| Agri | CORN, SOYB, WEAT, COFF, COCC, SUGA, PALM, RICE, COTT | — | Listed but not tradable: Chainlink has no agricultural feed on Robinhood Chain (checked 2026-09-26), and the page says so |
+
+A Chainlink feed publishes a new round when its price moves 0.5% or once a day, so between
+rounds the on-chain price can trail the market by up to 0.5%. That's why crypto stops at 20× —
+at 50× the lag alone would be a third of a position's margin. Stocks stop at 5×: they gap over
+weekends, when their feeds publish nothing (52–57 hours without a round, the weekend of
+2026-09-19), and nothing can be liquidated while a feed is quiet.
+
+### Venues
+
+- **`paper`** (dev only, the default there): positions live in the database against a virtual
+  USDC balance, opened and closed with an EIP-712 signature, filled at the live price and
+  liquidated by the worker. The math is the contract's.
+- **`agri-perp`**: the contracts. The server builds the transactions and the wallet sends them.
+
+### An order on chain
+
+1. **Request.** Only while the market's feed is live (a round in the last 25 hours), and with a
+   limit the current price meets. It commits the collateral and fee, the pool's reserve for the
+   position's maximum profit, and the open interest. A deposit can ride along in the same
+   transaction.
+2. **Execute.** The worker's keeper, or anyone, executes it at the feed's first round that was
+   *observed* after the request (Chainlink observes a price about 13 seconds before it lands on
+   chain; 2 seconds of margin cover clock drift) and landed within 25 hours of it, on the
+   aggregator it was requested on. The contract checks the rounds before it, so there's exactly
+   one such round: nobody can choose a price, nor fill at one already on its way. However late
+   it's executed, the order settles at that round — waiting buys nothing. A fill past the
+   trader's limit cancels it and refunds it. On a quiet market the round can take hours; the
+   quote says so.
+3. **Or take it back.** Before its round lands the trader can ask for a waiting order back, and
+   forfeits the opening fee — the order held the pool's liquidity while it waited. A price
+   observed after the ask then cancels it instead of filling it; one observed before still
+   fills it, so whoever sees a round before it lands can't cancel only the fills that go against
+   them. With no round, it's released five minutes after the ask. The page lists waiting orders
+   under *Waiting*.
+4. **Or expire.** An order no round priced within its 25 hours is released with that proven from
+   the feed's history (anyone can, and earns its execution fee); the trader gets everything
+   back. So is one whose feed Chainlink moves to a new aggregator, or whose market is delisted.
+5. **Liquidate.** At 80% loss (price and funding), on the feed's latest round. The liquidator
+   keeps 10% of what's left, never less than 0.5% of the collateral, and the trader gets the
+   rest.
+
+An order keeps the terms it was requested under (delays, fees, liquidation parameters), and so
+does its position: owner changes to those reach only new orders, and every setting has hard
+bounds. Profit per position is capped at min(9× collateral, size), the reserve set aside at
+request — that's what keeps the pool able to pay every open position's best case. Funding is
+the exception: it's set by the owner per market (manual for the MVP, brief §12.4), applies to
+open positions from the change on (never retroactively), is capped at 0.01% of size per hour,
+accrues per second, and is 0 by default. A market whose feed stops for a week can be delisted by
+the owner, and after two weeks by anyone: its positions settle at the last price, with no close
+fee — the last price the contract read, if the feed can't be read at all.
+
+### Contracts
+
+`contracts/` is a standalone Hardhat 3 project, kept out of the npm workspaces so the app never
+installs the Solidity toolchain.
+
+| Contract | Role |
+| --- | --- |
+| `AgriFeed` | Market → Chainlink feed proxy, answers as 18-decimal USD. Proves from the feed's own round history which round settles an order — or that none did — pinned to the aggregator (phase) the order was requested on |
+| `AgriVault` | The USDC: each trader's free and locked collateral, the LP pool and its reserve, protocol fees |
+| `AgriPerp` | Orders, positions, funding, liquidation, delisting |
+
+The brief's `AgriLiquidatorBot` isn't a separate contract: `liquidate` is permissionless and
+takes a batch, and the keeper calls it. The version built on Pyth (with the agri futures, rolls
+and split handling) is archived in `contracts/archive/pyth/`.
+
+```bash
+cd contracts && npm install
+npx hardhat test                                        # 32 tests
+npx hardhat node                                        # a local chain
+npx hardhat run scripts/deploy.ts --network localhost   # MockAggregators + MockUSDC locally; prints the .env lines
+npm run abi                                             # after changing a contract: ABIs into packages/core
+```
+
+The deploy script lists every market in `deploy/markets.json` (generated from the app's registry
+by `npx tsx scripts/perps-markets.mts`) and seeds the pool (`SEED_LIQUIDITY_USDC`). Locally each
+market gets a MockAggregator, and the worker (`PERPS_ORACLE=mock`) posts live prices into it; on
+Robinhood Chain it lists Chainlink's proxies, after checking each against Chainlink's feed
+directory. Off the local chain it needs `USDC_ADDRESS`; `OWNER_ADDRESS` hands ownership to a
+multisig. `set-markets.ts` pauses markets or changes their caps, and `delist.ts` delists one
+whose feed has stopped.
+
+### API and worker
+
+- **API** under `/api/perps/`: `markets`, `stats/:symbol`, `price/:symbol`, `candles/:symbol`,
+  `positions`, `history`, `orders` (waiting on chain), `collateral`, `quote`, `record`,
+  `cancel`, `actions/:id`, `faucet` (dev). Wallet routes need the SIWE session and have
+  per-wallet limits; a quote lives 20 seconds and is bound to one address.
+- **Worker.** `perp-prices` reads every feed's latest round in one multicall every 5 s into the
+  cache the API reads, and builds the chart bars — carrying each round forward until the next,
+  as positions are marked, and backfilling a new market from the feed's last two days of rounds.
+  `perp-orders` runs every 3 s: the keeper reads each waiting order's fate from its feed's
+  history as the contract will prove it — executes the ones whose round has landed, expires the
+  ones no round priced, releases the ones asked back, and cancels the ones on a feed Chainlink
+  moved to a new aggregator. `perps` runs every 5 s: lapsed quotes, transactions
+  in flight, the contract's events mirrored into `perp_positions`, liquidations and delisted
+  markets. Both keep running with the flag off while positions are open.
+- **The keeper key** (`KEEPER_PRIVATE_KEY`, worker only) calls only permissionless functions. It
+  holds gas and the execution fees it earns, never user funds. Without it, orders wait for
+  someone else to execute them.
+- **Chainlink** is read over plain RPC — the feeds are public contracts, with no key or plan.
+  Pages poll `/api/perps/*` rather than holding the brief's WebSocket, so no page load ever
+  reaches the chain for a price. Robinhood's own RPC is blocked by Indonesian ISPs; the default
+  `PERPS_ORACLE_RPC_URL` is dRPC's public endpoint.
+
+| Variable | Meaning |
+| --- | --- |
+| `FEATURE_PERPS` | The page and every perps-writing endpoint |
+| `PERPS_VENUE` | `paper` (dev only) or `agri-perp` |
+| `AGRI_FEED_ADDRESS`, `AGRI_VAULT_ADDRESS`, `AGRI_PERP_ADDRESS`, `AGRI_DEPLOY_BLOCK` | The deployment |
+| `PERPS_ORACLE_RPC_URL` | Where prices are read when the contracts aren't on Robinhood Chain (paper, a local chain) |
+| `PERPS_ORACLE=mock` | Local chains only: the worker posts the cached prices into the MockAggregators |
+| `KEEPER_PRIVATE_KEY`, `PERPS_EXECUTION_FEE_WEI` | The keeper, and what each order pays whoever executes it |
+| `PERPS_FUNDING_RATES`, `PERPS_FEE_BPS`, `PERPS_CLOSE_FEE_BPS`, `PERPS_MAX_OI_USD`, `PERPS_FAUCET_USDC` | The paper venue's copies of what the contract holds on chain |
+
+### Where it differs from the brief
+
+| Brief | Built | Why |
+| --- | --- | --- |
+| Pyth price feeds | Chainlink Data Feeds on Robinhood Chain | Pyth's commodity and equity data needs a paid plan; Chainlink's feeds there are free to read |
+| Nine agri markets | Listed, not tradable | Chainlink has no agricultural feed on Robinhood Chain; the Pyth version that traded coffee, cocoa and sugar is archived |
+| SOL, ARB | Listed, not tradable | No Chainlink feed on Robinhood Chain |
+| 50× on every market | 20× crypto, 5× stocks | The feeds' 0.5% deviation lag, and weekend gaps |
+| Open at the current price | Request, then execute at the first round observed after it | Opening at a price the trader has already seen lets them pick a favourable one (the first review's critical finding) |
+| — | Orders can be asked back | Waiting for a round can take hours |
+| 0.1% opening fee | 0.1% to open and 0.1% to close | A free round trip is an option on the pool |
+| Uncapped profit | min(9× collateral, size), reserved from the pool | The pool has to cover every position's best case |
+| Funding 0.01% per hour | 0 by default, owner-set, capped at 0.01% per hour | 0.01% an hour is about 88% of size a year |
+| `GOOG` | `GOOGL` | The rest of the app, and Chainlink, track class A |
+| WebSocket price stream | Polling the cached price | No chain read behind a page load |
+| `positions`, `price_candles`, `funding_history` tables | `perp_positions`, `perp_funding_history`, plus `perp_actions`, `perp_accounts`, `perp_markets`; chart bars in the cache | Named apart from the spot tables; bars live where the app's other candles do |
+| `AgriLiquidatorBot` contract | The worker's keeper | `liquidate` is permissionless |
+
+### Before mainnet
+
+The step-by-step for Robinhood Chain mainnet — accounts, a preflight check of every feed against
+Chainlink's directory, a rehearsal on a copy of mainnet, the deploy, the app's settings, and
+running and pausing markets from a Safe — is [`contracts/MAINNET.md`](contracts/MAINNET.md).
+
+- **An audit** (brief §12.1). The internal security reviews that shaped the contracts don't
+  replace one. What they left open, for the audit and for operations:
+  - Waiting orders hold pool liquidity and open interest until their round. Taking one back
+    costs the opening fee, but an order a quiet feed never prices (a stock's weekend) is
+    released free after 25 hours, so a large enough stack of orders can crowd the pool for a
+    while. The owner can pause markets and add liquidity.
+  - The stock feeds are verified silent on weekends; on US market holidays and trading halts
+    they're assumed to be too. If one published at a stale price, orders would fill at a price
+    known in advance: pause stock markets over a holiday until that's confirmed.
+  - A price gap wider than the liquidation distance between two rounds (a sequencer outage, a
+    flash crash) is paid by the pool, like any perps venue's. There's no sequencer-uptime feed
+    for Robinhood Chain yet to pause on.
+  - In the second a round lands through Chainlink's private SVR path, the contract doesn't see
+    it yet; a cancel released in that very second, of an order that round would have filled,
+    needs a transmission delayed five minutes as well.
+  - An order that would need more than 64 in-flight rounds of proof can't settle — 64 rounds
+    landing within a minute, beyond what a Chainlink network publishes.
+  - The keeper has to stay live for orders to fill promptly (they settle at their round
+    whenever executed, so a slow keeper costs time, not money). Run one worker.
+- **A minimum execution fee** (`MIN_EXECUTION_FEE_WEI` at deploy) on a real chain, so anyone
+  can profitably execute orders when the keeper is slow and spamming orders costs something.
+- **USDC on Robinhood Chain** (brief step 3A): the only USDC found there has about 340 in
+  circulation; which USDC to settle in needs Robinhood's confirmation.
+- The LP seed (brief §12.5), the keeper's gas budget and execution fee, a borrow fee on open
+  interest (today the pool earns only fees and traders' losses), and trading from the chat (a
+  later phase in the brief).
+- A regulatory answer for leveraged derivatives on stocks.
 
 ---
 
@@ -235,6 +432,9 @@ Still open, and what each one blocks:
 | Limit-order primitive vs bot (this brief #2) | Limit orders on a real venue | Paper limit orders, filled by the worker |
 | Candle intervals from the provider (this brief #1) | Real charts | Provider bars when the plan allows; generated bars in dev |
 | Regulatory answers (main #8) | Trading in production | `FEATURE_TRADING=false` |
+| USDC on Robinhood Chain (perps brief step 3A) | Perps on chain | `paper` venue; a local chain with MockAggregators and MockUSDC |
+| An agri price feed on Robinhood Chain (perps brief §3) | The agri markets | Listed as unavailable; the Pyth version of the contracts is archived in `contracts/archive/pyth/` |
+| Audit (perps brief §12.1) | Perps in production | `FEATURE_PERPS=false` |
 | Order history retention (this brief #5) | — | Orders are kept forever (main brief §10) |
 | All tokens vs supported only (this brief #6) | — | All, with unsupported in their own section (the brief's suggestion) |
 

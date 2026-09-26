@@ -18,7 +18,7 @@ export function SidebarContent({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const { trading } = useConfig();
+  const { perps } = useConfig();
 
   return (
     <div className="flex h-full flex-col">
@@ -51,7 +51,7 @@ export function SidebarContent({
       <nav className="flex-1 overflow-y-auto px-4 py-5" aria-label="Main navigation">
         <p className="t-eyebrow px-2 pb-3">Navigation</p>
         <ul className="space-y-1">
-          {navItems({ trading }).map((item) => {
+          {navItems({ perps }).map((item) => {
             const active =
               item.href === '/' ? pathname === '/' : (pathname?.startsWith(item.href) ?? false);
             const Icon = item.icon;
@@ -63,8 +63,8 @@ export function SidebarContent({
                     aria-disabled="true"
                     className="flex min-h-[44px] items-center gap-3 rounded-full px-3 text-text-3"
                     title={
-                      item.href === '/trade'
-                        ? 'Trading opens once its regulatory questions are answered'
+                      item.href === '/perps'
+                        ? 'Perps open once their regulatory questions are answered'
                         : "This page doesn't exist yet — coming in phase 2"
                     }
                   >

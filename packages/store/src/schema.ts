@@ -183,4 +183,105 @@ create table if not exists rate_limits (
   reset_at timestamptz not null
 );
 create index if not exists rate_limits_reset_idx on rate_limits (reset_at);
+
+-- ---- Perps (Agri Perps brief §7) -------------------------------------------
+-- Positions on both venues. Paper positions are the record; on-chain ones
+-- mirror the AgriPerp contract's events (keyed by chain id + position id),
+-- so history, open interest and the liquidation keeper read one table.
+create table if not exists perp_positions (
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid references users(id) on delete set null,
+  address            text not null,
+  venue              text not null check (venue in ('paper', 'agri-perp')),
+  chain_id           integer,
+  chain_position_id  numeric,
+  symbol             text not null,
+  category           text not null check (category in ('agri', 'crypto', 'stocks')),
+  side               text not null check (side in ('long', 'short')),
+  collateral         numeric not null check (collateral > 0),
+  size               numeric not null check (size > 0),
+  leverage           numeric not null,
+  -- Price of the contract traded at open; PnL is measured on the
+  -- roll-adjusted index, which only differs for agri futures after a roll.
+  entry_price        numeric not null,
+  entry_index        numeric not null,
+  entry_funding      numeric not null default 0,
+  reserve            numeric not null default 0,
+  fee                numeric not null default 0,
+  status             text not null check (status in ('open', 'closed', 'liquidated')),
+  exit_price         numeric,
+  exit_index         numeric,
+  realized_pnl       numeric,
+  funding_paid       numeric,
+  payout             numeric,
+  liquidation_reward numeric,
+  tx_open            text,
+  tx_close           text,
+  opened_at          timestamptz not null default now(),
+  closed_at          timestamptz,
+  updated_at         timestamptz not null default now()
+);
+create unique index if not exists perp_positions_chain_idx
+  on perp_positions (chain_id, chain_position_id) where chain_position_id is not null;
+create index if not exists perp_positions_user_idx on perp_positions (user_id, opened_at desc);
+create index if not exists perp_positions_address_idx on perp_positions (address, opened_at desc);
+create index if not exists perp_positions_open_idx on perp_positions (venue, symbol) where status = 'open';
+
+-- Quote → sign → settle, like orders: the quote exactly as issued is what a
+-- signature or transaction is checked against, never client state.
+create table if not exists perp_actions (
+  id          uuid primary key,
+  user_id     uuid not null references users(id) on delete cascade,
+  address     text not null,
+  kind        text not null check (kind in ('open', 'close', 'deposit', 'withdraw')),
+  venue       text not null,
+  symbol      text,
+  position_id uuid,
+  amount      numeric,
+  status      text not null check (status in ('quoted', 'pending', 'done', 'failed', 'expired')),
+  quote       jsonb not null,
+  -- On chain: the AgriPerp order the request created, executed by the keeper.
+  chain_order_id numeric,
+  tx_hash     text,
+  tx_hashes   text[] not null default '{}',
+  signature   text,
+  error       text,
+  expires_at  timestamptz,
+  checked_at  timestamptz,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+-- On chain: when the trader asked for a waiting order back (released five minutes on).
+alter table perp_actions add column if not exists cancel_requested_at timestamptz;
+create index if not exists perp_actions_user_idx on perp_actions (user_id, created_at desc);
+create index if not exists perp_actions_live_idx on perp_actions (status) where status in ('quoted', 'pending');
+
+-- Paper venue only: each wallet's virtual USDC not backing a position.
+create table if not exists perp_accounts (
+  user_id         uuid primary key references users(id) on delete cascade,
+  free_collateral numeric not null default 0 check (free_collateral >= 0),
+  faucet_total    numeric not null default 0,
+  updated_at      timestamptz not null default now()
+);
+
+-- Paper venue only (the contract keeps its own): which futures contract a
+-- market reads, the cumulative roll adjustment, and the funding index.
+create table if not exists perp_markets (
+  symbol             text primary key,
+  feed_id            text not null,
+  roll_factor        numeric not null default 1,
+  funding_rate       numeric not null default 0,
+  funding_index      numeric not null default 0,
+  funding_updated_at timestamptz not null default now(),
+  rolled_at          timestamptz,
+  updated_at         timestamptz not null default now()
+);
+
+create table if not exists perp_funding_history (
+  id          bigserial primary key,
+  symbol      text not null,
+  rate        numeric not null,
+  recorded_at timestamptz not null default now()
+);
+create index if not exists perp_funding_history_idx on perp_funding_history (symbol, recorded_at desc);
 `;

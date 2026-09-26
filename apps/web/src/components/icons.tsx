@@ -2,8 +2,12 @@ import {
   ArrowLeftRight,
   ArrowRight,
   AudioLines,
+  Bitcoin,
   Bot,
   Briefcase,
+  ChartCandlestick,
+  ChartLine,
+  Clock,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -30,6 +34,7 @@ import {
   Volume2,
   VolumeX,
   Wallet,
+  Wheat,
   X,
   type LucideProps,
 } from 'lucide-react';
@@ -54,6 +59,7 @@ export const HomeIcon = wrap(Home, 18);
 export const PodIcon = wrap(Bot, 18);
 export const MarketIcon = wrap(LineChart, 18);
 export const TradeIcon = wrap(ArrowLeftRight, 18);
+export const PerpsIcon = wrap(ChartCandlestick, 18);
 export const HeatIcon = wrap(Flame, 18);
 export const PortfolioIcon = wrap(Briefcase, 18);
 export const MenuIcon = wrap(Menu, 20);
@@ -86,6 +92,12 @@ export const ChevronLeftIcon = wrap(ChevronLeft, 16);
 export const ChevronRightIcon = wrap(ChevronRight, 16);
 export const CheckIcon = wrap(Check, 14);
 export const CopyIcon = wrap(Copy, 14);
+
+// Perps: the three market categories, and a closed market's clock.
+export const AgriIcon = wrap(Wheat, 14);
+export const CryptoIcon = wrap(Bitcoin, 14);
+export const StocksIcon = wrap(ChartLine, 14);
+export const ClockIcon = wrap(Clock, 14);
 
 // Home feature-card glyphs (design.md §10) — not used in the dashboard.
 export const GridIcon = wrap(LayoutGrid, 20);

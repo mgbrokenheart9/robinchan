@@ -65,15 +65,18 @@ export function SignButton({
   onRefresh,
   disabled,
   busyLabel,
+  label = 'Sign order',
   className,
 }: {
-  quote: OrderQuote | null;
+  /** Any server quote — only its expiry is read here (spot orders and perps alike). */
+  quote: Pick<OrderQuote, 'expiresAt'> | null;
   side: 'buy' | 'sell';
   onSign: () => void;
   onRefresh: () => void;
   disabled?: boolean;
   /** Replaces the label while signing / confirming. */
   busyLabel?: string | null;
+  label?: string;
   className?: string;
 }) {
   const remaining = useCountdown(quote?.expiresAt ?? null);
@@ -100,7 +103,7 @@ export function SignButton({
         className,
       )}
     >
-      <span>{busyLabel ?? 'Sign order'}</span>
+      <span>{busyLabel ?? label}</span>
       {quote && !busyLabel ? (
         <span
           className={cx(

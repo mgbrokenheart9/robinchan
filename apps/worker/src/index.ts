@@ -11,6 +11,8 @@ const { runHeat } = await import('./jobs/heat.js');
 const { runHeatReads } = await import('./jobs/reads.js');
 const { runCandles } = await import('./jobs/candles.js');
 const { runOrders } = await import('./jobs/orders.js');
+const { runPerpOrders, runPerpPrices, runPerpUpkeep } = await import('./jobs/perps.js');
+const { perpPriceIntervalMs } = await import('@robinchan/core');
 const { runSnapshots, msUntilMidnightUtc } = await import('./jobs/snapshots.js');
 const { runCalendar } = await import('./jobs/calendar.js');
 const { runChannels, runClips } = await import('./jobs/media.js');
@@ -44,6 +46,14 @@ const JOBS: Record<string, Job> = {
   },
   // Expired quotes, pending transactions, limit orders.
   orders: { name: 'orders', everyMs: 30_000, run: runOrders },
+  // Perps (Agri Perps brief §5D, §11): every market's Chainlink price in one
+  // multicall, then chart bars; and the keeper — quotes, transactions in
+  // flight, the contract's events, liquidations and funding. A 20× position
+  // can be liquidated by a 4% move, so these run in seconds.
+  perpPrices: { name: 'perp-prices', everyMs: perpPriceIntervalMs(), run: runPerpPrices },
+  perps: { name: 'perps', everyMs: 5_000, run: runPerpUpkeep },
+  // On chain, an order fills within 20 s of its round or not at all.
+  perpOrders: { name: 'perp-orders', everyMs: 3_000, run: runPerpOrders },
   channels: { name: 'channels', everyMs: 10 * 60_000, run: runChannels },
   // 15 min, not 5: new uploads from these channels land a few times an
   // hour at most, and each run spends YouTube quota (see providers/youtube.ts).
@@ -114,6 +124,9 @@ async function main(): Promise<void> {
   await safeRun(JOBS.calendar as Job);
   await safeRun(JOBS.heat as Job);
   await safeRun(JOBS.orders as Job);
+  await safeRun(JOBS.perpPrices as Job);
+  await safeRun(JOBS.perps as Job);
+  await safeRun(JOBS.perpOrders as Job);
   // Catch up if the worker was down at midnight.
   await safeRun({ ...snapshotJob, run: () => runSnapshots({ onlyIfDue: true }) });
 

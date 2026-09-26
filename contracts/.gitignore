@@ -1,0 +1,8 @@
+node_modules/
+artifacts/
+cache/
+types/
+coverage/
+ignition/deployments/chain-31337/
+# Local-chain deployments are throwaway; testnet/mainnet ones are kept.
+deployments/31337.json

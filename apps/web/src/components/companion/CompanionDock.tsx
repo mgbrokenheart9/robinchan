@@ -33,7 +33,7 @@ import { useCompanion } from './CompanionProvider';
 const PAGE_LABEL: Record<string, string> = {
   heat: 'Heat',
   portfolio: 'Portfolio',
-  trade: 'Trade',
+  perps: 'Perps',
 };
 
 export function CompanionDock() {
@@ -43,7 +43,7 @@ export function CompanionDock() {
     <>
       <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-32px)] items-end gap-2.5 sm:bottom-6 sm:right-6">
         {c.hint && !c.open ? (
-          // One line, beside the avatar — it must never cover the order ticket (Trade §3).
+          // One line, beside the avatar — it must never cover the order ticket.
           <button
             type="button"
             onClick={() => c.setOpen(true)}
@@ -160,8 +160,8 @@ function Panel() {
           <p className="text-center text-[12px] text-text-3">Loading your conversation…</p>
         ) : messages.length === 0 ? (
           <p className="rounded-panel bg-surface-2 px-4 py-3 text-[13px] leading-relaxed text-text-2">
-            I can see the {where} page with you. Ask what a number means, why something is hot, or — once
-            trading is on — describe an order and I&apos;ll put it together for you to sign.
+            I can see the {where} page with you. Ask what a number means, why something is hot, or how
+            funding and liquidation work. You decide and sign; I only explain.
           </p>
         ) : (
           messages.map((m) => <Message key={m.id} message={m} />)

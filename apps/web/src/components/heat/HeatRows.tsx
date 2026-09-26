@@ -2,14 +2,7 @@
 
 import Link from 'next/link';
 import type { HeatBoardRow, HeatComponentLine, HeatComponents, HeatDetail } from '@robinchan/shared';
-import {
-  direction,
-  formatPct,
-  formatPriceSmart,
-  formatUsdCompact,
-  relativeTime,
-  sentimentBucket,
-} from '@robinchan/shared';
+import { direction, formatPct, formatPriceSmart, formatUsdCompact, perpMarket, relativeTime, sentimentBucket } from '@robinchan/shared';
 
 import { Avatar } from '@/components/Avatar';
 import { ChevronDownIcon, ExternalIcon, StarIcon } from '@/components/icons';
@@ -214,7 +207,7 @@ export function HeatRowSkeleton() {
 export function HeatDetailPanel({
   symbol,
   detail,
-  trading,
+  perps,
   canWatchlist,
   watchlisted,
   onToggleWatch,
@@ -222,7 +215,8 @@ export function HeatDetailPanel({
 }: {
   symbol: string;
   detail: Resource<HeatDetail>;
-  trading: boolean;
+  /** The Perps page is live (`FEATURE_PERPS`). */
+  perps: boolean;
   canWatchlist: boolean;
   watchlisted: boolean;
   onToggleWatch: () => void;
@@ -295,15 +289,17 @@ export function HeatDetailPanel({
               <button type="button" onClick={onAsk} className="btn-primary h-10 min-h-0 px-4 text-[13px]">
                 Ask Robinchan
               </button>
-              {trading ? (
-                <Link href={`/trade?symbol=${encodeURIComponent(symbol)}`} className="btn-ghost h-10 min-h-0 px-4 text-[13px]">
-                  Open in Trade
-                </Link>
-              ) : (
-                <span className="btn-ghost h-10 min-h-0 cursor-not-allowed px-4 text-[13px] opacity-60" title="Trading isn't live yet">
-                  Open in Trade
-                </span>
-              )}
+              {perpMarket(symbol) ? (
+                perps ? (
+                  <Link href={`/perps?symbol=${encodeURIComponent(symbol)}`} className="btn-ghost h-10 min-h-0 px-4 text-[13px]">
+                    Open in Perps
+                  </Link>
+                ) : (
+                  <span className="btn-ghost h-10 min-h-0 cursor-not-allowed px-4 text-[13px] opacity-60" title="Perps aren't live yet">
+                    Open in Perps
+                  </span>
+                )
+              ) : null}
               {canWatchlist ? (
                 <button
                   type="button"

@@ -1,7 +1,15 @@
 import 'server-only';
 
-import type { ChainConfig } from '@robinchan/shared';
-import { chainConfig, heatReadsEnabled, isDev, tradingEnabled, venueId } from '@robinchan/core';
+import type { ChainConfig, PerpVenueId } from '@robinchan/shared';
+import {
+  chainConfig,
+  heatReadsEnabled,
+  isDev,
+  perpsEnabled,
+  perpsVenue,
+  tradingEnabled,
+  venueId,
+} from '@robinchan/core';
 
 /**
  * What the browser needs to know about server configuration, resolved on
@@ -10,11 +18,16 @@ import { chainConfig, heatReadsEnabled, isDev, tradingEnabled, venueId } from '@
  */
 export type PublicConfig = {
   chain: ChainConfig | null;
+  /** Spot orders from Robinchan's chat (`FEATURE_TRADING`). */
   trading: boolean;
   heatReads: boolean;
   venue: string | null;
   /** Whether the venue can hold a resting limit order at all. */
   limitOrders: boolean;
+  /** The Perps page (`FEATURE_PERPS`). */
+  perps: boolean;
+  /** Where perps positions live: `paper` (dev), `agri-perp` (the contracts), or not configured. */
+  perpsVenue: PerpVenueId | null;
   dev: boolean;
 };
 
@@ -26,6 +39,8 @@ export function publicConfig(): PublicConfig {
     heatReads: heatReadsEnabled(),
     venue,
     limitOrders: venue === 'paper',
+    perps: perpsEnabled(),
+    perpsVenue: perpsVenue(),
     dev: isDev(),
   };
 }

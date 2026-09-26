@@ -1,0 +1,22 @@
+{
+  "name": "@robinchan/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agri perps contracts (AgriFeed, AgriVault, AgriPerp) — a standalone Hardhat project, kept out of the npm workspaces so the web app and worker never install the Solidity toolchain.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "abi": "hardhat compile && node scripts/export-abi.mjs"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",
+    "@openzeppelin/contracts": "5.6.1",
+    "@types/node": "^22.18.0",
+    "hardhat": "3.18.0",
+    "typescript": "^5.9.2",
+    "viem": "^2.56.8"
+  }
+}

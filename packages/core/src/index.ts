@@ -24,3 +24,4 @@ export * from './orders/errors';
 export * from './orders/venues';
 export * from './orders/pipeline';
 export * from './orders/parse';
+export * from './perps';
