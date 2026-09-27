@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 
 import { ArrowRightIcon, CloseIcon, MenuIcon } from '@/components/icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { XLink } from '@/components/XLink';
 import { cx } from '@/components/ui';
 
 const LINKS = [
@@ -83,6 +84,7 @@ export function LandingHeader() {
               </Link>
             ))}
           </nav>
+          <XLink base={ICON_BUTTON} />
           <ThemeToggle base={ICON_BUTTON} />
           <Link href="/robinchan" className="btn-nav-cta ml-2">
             Launch app
@@ -94,6 +96,7 @@ export function LandingHeader() {
         </div>
 
         <div className="relative ml-auto flex items-center gap-1 md:hidden">
+          <XLink base={ICON_BUTTON} />
           <ThemeToggle base={ICON_BUTTON} />
           <button
             type="button"

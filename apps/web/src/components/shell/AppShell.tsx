@@ -8,6 +8,7 @@ import { CompanionDock } from '@/components/companion/CompanionDock';
 import { PeekingCompanion } from '@/components/companion/PeekingCompanion';
 import { MenuIcon } from '@/components/icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { XLink } from '@/components/XLink';
 import { ConnectButton, WalletPicker } from '@/components/wallet/ConnectButton';
 import { Pill, PulseDot, cx } from '@/components/ui';
 import { useOptionalConfig } from '@/lib/config';
@@ -111,6 +112,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Pill>
         ) : null}
 
+        <XLink />
         <ThemeToggle />
 
         {/* Same 44px footprint the M1 placeholder reserved, so the topbar
