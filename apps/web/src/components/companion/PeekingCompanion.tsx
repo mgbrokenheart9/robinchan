@@ -64,7 +64,10 @@ type Greeting = { title: string; text: string; ask: string };
  * if it can't. `minWidth` keeps her off a page until the margin right of
  * its content can hold her and her note.
  */
-const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting | null>; minWidth?: number }> = {
+const PAGES: Record<
+  string,
+  { fallback: Greeting; load?: () => Promise<Greeting | null>; minWidth?: number }
+> = {
   '/market': {
     fallback: {
       title: 'Welcome to the market!',
@@ -109,9 +112,9 @@ const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting 
     },
   },
   '/perps': {
-    // The order ticket is the content's right column: below ~1880px she and
-    // her note would sit on it, so she waits for a margin wide enough.
-    minWidth: 1880,
+    // The order ticket is the content's right column and sits above her, so
+    // narrower than this she'd be all but hidden behind it.
+    minWidth: 1600,
     fallback: {
       title: 'Perps on Robinhood Chain',
       text: 'Long or short crypto and US stocks, priced by Chainlink and settled on chain in your own wallet. Pick a market on the board to start.',
@@ -119,7 +122,8 @@ const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting 
     },
     load: async () => {
       const env = await getEnvelope<PerpMarket[]>('/api/perps/markets', []);
-      const priced = (symbol: string) => env.data.find((m) => m.symbol === symbol && m.price != null);
+      const priced = (symbol: string) =>
+        env.data.find((m) => m.symbol === symbol && m.price != null);
       const btc = priced('BTC');
       const eth = priced('ETH');
       if (!btc || !eth) return null;
@@ -218,6 +222,10 @@ function readDismissed(): string[] {
  * on Market, which has no dock, it goes to `/robinchan`. She ducks out
  * while the dock's chat panel is open, since it covers this corner.
  */
+/** The box she and her note are placed in, per breakpoint. */
+const FRAME =
+  'pointer-events-none fixed right-0 h-[570px] w-[250px] min-[1600px]:h-[630px] min-[1600px]:w-[285px] min-[1800px]:h-[640px] min-[1800px]:w-[320px]';
+
 /** Pages where `<CompanionDock>` renders its chat panel. */
 const DOCKED = new Set(['/heat', '/perps', '/portfolio']);
 
@@ -430,90 +438,94 @@ export function PeekingCompanion() {
     page && loaded?.page === page ? loaded.greeting : page ? PAGES[page]!.fallback : null;
 
   return (
-    <div
-      ref={wrapRef}
-      className="pointer-events-none fixed right-0 z-20 h-[570px] w-[250px] min-[1600px]:h-[630px] min-[1600px]:w-[285px] min-[1800px]:h-[640px] min-[1800px]:w-[320px]"
-      // Docked to the right edge; only the height moves when she's dragged.
-      style={{ bottom: lift }}
-      aria-live="polite"
-    >
-      {/* The figure: leaning in from past the right edge, feet below the
+    <>
+      {/* Two layers in one frame: the figure under the page content that
+        asks for it (Perps lifts its content to z-21, so the ticket always
+        takes the click), her note above everything. Docked to the right
+        edge; only the height moves when she's dragged. */}
+      <div ref={wrapRef} className={cx(FRAME, 'z-20')} style={{ bottom: lift }}>
+        {/* The figure: leaning in from past the right edge, feet below the
           fold. Sized per breakpoint; the canvas refits on resize. */}
-      <div
-        ref={stageRef}
-        className="peek-figure absolute -bottom-[90px] right-0 h-[500px] w-[290px] min-[1600px]:-bottom-[100px] min-[1600px]:h-[560px] min-[1600px]:w-[325px] min-[1800px]:-bottom-[110px] min-[1800px]:h-[620px] min-[1800px]:w-[360px]"
-        data-state={peeking ? 'in' : 'out'}
-      >
-        <Live2DCanvas handleRef={handle} onStatus={onStatus} className="h-full w-full" />
-        {/* Grab handle over her head and body: press-and-drag moves her up
+        <div
+          ref={stageRef}
+          className="peek-figure absolute -bottom-[90px] right-0 h-[500px] w-[290px] min-[1600px]:-bottom-[100px] min-[1600px]:h-[560px] min-[1600px]:w-[325px] min-[1800px]:-bottom-[110px] min-[1800px]:h-[620px] min-[1800px]:w-[360px]"
+          data-state={peeking ? 'in' : 'out'}
+        >
+          <Live2DCanvas handleRef={handle} onStatus={onStatus} className="h-full w-full" />
+          {/* Grab handle over her head and body: press-and-drag moves her up
             or down the right edge, a plain tap toggles her note, arrow
             keys move her from the keyboard. Everything else about the
             figure stays click-through so it never blocks the page. */}
-        {peeking ? (
-          <button
-            type="button"
-            onPointerDown={onGrab}
-            onPointerMove={onDrag}
-            onPointerUp={onDrop}
-            onPointerCancel={onDrop}
-            onLostPointerCapture={onDrop}
-            onKeyDown={onKey}
-            aria-label="Robinchan: tap to show her note, drag or use the arrow keys to move her"
-            className={cx(
-              'pointer-events-auto absolute left-[6%] top-[4%] h-[52%] w-[52%] touch-none rounded-[40%]',
-              dragging ? 'cursor-grabbing' : 'cursor-grab',
-            )}
-          />
-        ) : null}
+          {peeking ? (
+            <button
+              type="button"
+              onPointerDown={onGrab}
+              onPointerMove={onDrag}
+              onPointerUp={onDrop}
+              onPointerCancel={onDrop}
+              onLostPointerCapture={onDrop}
+              onKeyDown={onKey}
+              aria-label="Robinchan: tap to show her note, drag or use the arrow keys to move her"
+              className={cx(
+                'pointer-events-auto absolute left-[6%] top-[4%] h-[52%] w-[52%] touch-none rounded-[40%]',
+                dragging ? 'cursor-grabbing' : 'cursor-grab',
+              )}
+            />
+          ) : null}
+        </div>
       </div>
 
       {greeting ? (
-        <div
-          className={cx(
-            'peek-bubble card-glass absolute w-[218px] rounded-[20px] px-4 pb-4 pt-3.5 min-[1600px]:w-[236px] min-[1800px]:w-[252px]',
-            // Above her head by default; beside it (to her left) when she's
-            // been lifted too high for the bubble to fit under the topbar.
-            placement === 'above'
-              ? 'right-[10px] top-[8px] min-[1800px]:right-[16px]'
-              : 'right-[150px] top-[180px] min-[1600px]:right-[168px] min-[1600px]:top-[190px] min-[1800px]:right-[190px] min-[1800px]:top-[150px]',
-          )}
-          data-state={talking ? 'in' : 'out'}
-          data-placement={placement}
-          role="status"
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          <div className="mb-1.5 flex items-center justify-between gap-3">
-            <span className="t-eyebrow text-accent-fg">{greeting.title}</span>
-            <button
-              type="button"
-              onClick={dismiss}
-              aria-label="Hide Robinchan on this page"
-              className="-mr-1.5 flex h-7 w-7 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-overlay/[0.06] hover:text-text"
-            >
-              <CloseIcon width={14} height={14} />
-            </button>
+        <div className={cx(FRAME, 'z-[22]')} style={{ bottom: lift }} aria-live="polite">
+          <div
+            className={cx(
+              'peek-bubble card-glass absolute w-[218px] rounded-[20px] px-4 pb-4 pt-3.5 min-[1600px]:w-[236px] min-[1800px]:w-[252px]',
+              // Above her head by default; beside it (to her left) when she's
+              // been lifted too high for the bubble to fit under the topbar.
+              placement === 'above'
+                ? 'right-[10px] top-[8px] min-[1800px]:right-[16px]'
+                : 'right-[150px] top-[180px] min-[1600px]:right-[168px] min-[1600px]:top-[190px] min-[1800px]:right-[190px] min-[1800px]:top-[150px]',
+            )}
+            data-state={talking ? 'in' : 'out'}
+            data-placement={placement}
+            role="status"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+          >
+            <div className="mb-1.5 flex items-center justify-between gap-3">
+              <span className="t-eyebrow text-accent-fg">{greeting.title}</span>
+              <button
+                type="button"
+                onClick={dismiss}
+                aria-label="Hide Robinchan on this page"
+                className="-mr-1.5 flex h-7 w-7 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-overlay/[0.06] hover:text-text"
+              >
+                <CloseIcon width={14} height={14} />
+              </button>
+            </div>
+            <p className="text-[13px] leading-[1.5] text-text min-[1800px]:text-[13.5px]">
+              {greeting.text}
+            </p>
+            {page && DOCKED.has(page) ? (
+              <button
+                type="button"
+                onClick={() => companion.ask(greeting.ask)}
+                className={ASK_LINK}
+              >
+                Ask me about it
+                <ArrowRightIcon width={13} height={13} />
+              </button>
+            ) : (
+              <Link href="/robinchan" className={ASK_LINK}>
+                Ask me about it
+                <ArrowRightIcon width={13} height={13} />
+              </Link>
+            )}
+            {/* Tail pointing at her head: down, or right when beside her. */}
+            <span aria-hidden className="peek-bubble-tail" />
           </div>
-          <p className="text-[13px] leading-[1.5] text-text min-[1800px]:text-[13.5px]">{greeting.text}</p>
-          {page && DOCKED.has(page) ? (
-            <button
-              type="button"
-              onClick={() => companion.ask(greeting.ask)}
-              className={ASK_LINK}
-            >
-              Ask me about it
-              <ArrowRightIcon width={13} height={13} />
-            </button>
-          ) : (
-            <Link href="/robinchan" className={ASK_LINK}>
-              Ask me about it
-              <ArrowRightIcon width={13} height={13} />
-            </Link>
-          )}
-          {/* Tail pointing at her head: down, or right when beside her. */}
-          <span aria-hidden className="peek-bubble-tail" />
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
