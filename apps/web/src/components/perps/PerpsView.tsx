@@ -149,7 +149,7 @@ export function PerpsView({
     if (!market || greeted.current === symbol) return;
     greeted.current = symbol;
     if (market.status === 'unavailable') {
-      companion.say(`${market.symbol} (${market.localName}) can't be traded: Chainlink has no price feed for it on Robinhood Chain.`);
+      companion.say(`${market.symbol} (${market.name}) can't be traded: Chainlink has no price feed for it on Robinhood Chain.`);
       return;
     }
     const move = market.change24hPct == null ? '' : `, ${formatPct(market.change24hPct)} over 24h`;

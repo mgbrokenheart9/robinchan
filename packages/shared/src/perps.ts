@@ -43,10 +43,7 @@ export type PerpFeedContract = {
 
 export type PerpMarketDef = {
   symbol: string;
-  /** English name. */
   name: string;
-  /** The brief's Indonesian name, e.g. "Kopi Arabika". */
-  localName: string;
   category: PerpCategory;
   /** Unit after the price, e.g. "/lb". Empty for per-share and per-coin prices. */
   unit: string;
@@ -80,11 +77,10 @@ export const GAPPING_MAX_LEVERAGE = 5;
 const CHAINLINK_CHECKED = '2026-09-26';
 
 /** A market with no Chainlink feed on Robinhood Chain: listed, with the reason, never tradable. */
-function noFeed(symbol: string, name: string, localName: string, category: PerpCategory, unit: string, hours: string): PerpMarketDef {
+function noFeed(symbol: string, name: string, category: PerpCategory, unit: string, hours: string): PerpMarketDef {
   return {
     symbol,
     name,
-    localName,
     category,
     unit,
     contracts: [],
@@ -95,25 +91,25 @@ function noFeed(symbol: string, name: string, localName: string, category: PerpC
   };
 }
 
-const agri = (symbol: string, name: string, localName: string, unit: string, hours: string) => noFeed(symbol, name, localName, 'agri', unit, hours);
+const agri = (symbol: string, name: string, unit: string, hours: string) => noFeed(symbol, name, 'agri', unit, hours);
 
 export const PERP_MARKETS: PerpMarketDef[] = [
   /* ---- Agri: no Chainlink feed for any of them on Robinhood Chain ---- */
-  agri('CORN', 'Corn', 'Jagung', '/bu', 'CBOT hours'),
-  agri('SOYB', 'Soybeans', 'Kedelai', '/bu', 'CBOT hours'),
-  agri('WEAT', 'Wheat', 'Gandum', '/bu', 'CBOT hours'),
-  agri('COFF', 'Arabica Coffee', 'Kopi Arabika', '/lb', 'ICE hours'),
-  agri('COCC', 'Cocoa', 'Kakao', '/t', 'ICE hours'),
-  agri('SUGA', 'Raw Sugar', 'Gula', '/lb', 'ICE hours'),
-  agri('PALM', 'Crude Palm Oil', 'Minyak Sawit', '/t', 'Bursa Malaysia hours'),
-  agri('RICE', 'Rough Rice', 'Beras', '/cwt', 'CBOT hours'),
-  agri('COTT', 'Cotton', 'Kapas', '/lb', 'ICE hours'),
+  agri('CORN', 'Corn', '/bu', 'CBOT hours'),
+  agri('SOYB', 'Soybeans', '/bu', 'CBOT hours'),
+  agri('WEAT', 'Wheat', '/bu', 'CBOT hours'),
+  agri('COFF', 'Arabica Coffee', '/lb', 'ICE hours'),
+  agri('COCC', 'Cocoa', '/t', 'ICE hours'),
+  agri('SUGA', 'Raw Sugar', '/lb', 'ICE hours'),
+  agri('PALM', 'Crude Palm Oil', '/t', 'Bursa Malaysia hours'),
+  agri('RICE', 'Rough Rice', '/cwt', 'CBOT hours'),
+  agri('COTT', 'Cotton', '/lb', 'ICE hours'),
 
   /* ---- Crypto ---- */
   crypto('BTC', 'Bitcoin', '0xa2c5184bF03d373Dc9dE4876eb4Bce595B460251', 'BTC / USD'),
   crypto('ETH', 'Ethereum', '0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9', 'ETH / USD'),
-  noFeed('SOL', 'Solana', 'Solana', 'crypto', '', '24/7'),
-  noFeed('ARB', 'Arbitrum', 'Arbitrum', 'crypto', '', '24/7'),
+  noFeed('SOL', 'Solana', 'crypto', '', '24/7'),
+  noFeed('ARB', 'Arbitrum', 'crypto', '', '24/7'),
 
   /*
    * ---- Stocks: Robinhood's tokenized equities, total return value ----
@@ -135,7 +131,6 @@ function crypto(symbol: string, name: string, feedId: `0x${string}`, oracleSymbo
   return {
     symbol,
     name,
-    localName: name,
     category: 'crypto',
     unit: '',
     contracts: [{ feedId, oracleSymbol, label: `Chainlink ${oracleSymbol}`, rollAt: null }],
@@ -149,7 +144,6 @@ function stock(symbol: string, name: string, feedId: `0x${string}`, oracleSymbol
   return {
     symbol,
     name,
-    localName: name,
     category: 'stocks',
     unit: '',
     contracts: [{ feedId, oracleSymbol, label: `Chainlink ${oracleSymbol}`, rollAt: null }],
@@ -273,7 +267,6 @@ export type PerpMarketStatus = 'open' | 'closed' | 'halted' | 'unavailable';
 export type PerpMarket = {
   symbol: string;
   name: string;
-  localName: string;
   category: PerpCategory;
   unit: string;
   status: PerpMarketStatus;

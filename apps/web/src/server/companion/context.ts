@@ -90,7 +90,7 @@ async function perpsLines(symbol: string | null, session: Session | null, lines:
     const market = (await perpMarketViews()).find((m) => m.symbol === def.symbol);
     if (market) {
       lines.push(
-        `Open market: ${def.symbol} (${def.name}${def.localName !== def.name ? `, "${def.localName}"` : ''}, ${def.category}), ${market.status}` +
+        `Open market: ${def.symbol} (${def.name}, ${def.category}), ${market.status}` +
           (market.statusNote ? ` — ${market.statusNote}` : '') +
           (market.price != null ? `; price $${formatPriceSmart(market.price)}${market.unit}` : '; no price yet') +
           (market.change24hPct != null ? `, 24h ${formatPct(market.change24hPct)}` : '') +

@@ -154,7 +154,6 @@ export async function perpMarketViews(category?: PerpCategory): Promise<PerpMark
     return {
       symbol: def.symbol,
       name: def.name,
-      localName: def.localName,
       category: def.category,
       unit: def.unit,
       ...perpMarketStatus(def, state, mark, { venueConfigured: Boolean(venue) }),

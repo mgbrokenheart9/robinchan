@@ -20,8 +20,15 @@ const LOGOS: Record<string, string> = {
   META: '/img/tickers/META.svg',
   GOOGL: '/img/tickers/GOOGL.svg',
   COIN: '/img/tickers/COIN.svg',
+  BTC: '/img/tickers/BTC.svg',
+  ETH: '/img/tickers/ETH.svg',
+  SOL: '/img/tickers/SOL.svg',
+  ARB: '/img/tickers/ARB.png',
   RCHAN: '/img/logo.jpg',
 };
+
+/** Whether `symbol` has a real mark (the rest get a lettered disc). */
+export const hasTickerLogo = (symbol: string): boolean => symbol in LOGOS;
 
 export function TickerLogo({ symbol, size = 32 }: { symbol: string; size?: number }) {
   const src = LOGOS[symbol];
@@ -48,7 +55,7 @@ export function TickerLogo({ symbol, size = 32 }: { symbol: string; size?: numbe
       aria-hidden
       width={size}
       height={size}
-      // SVGs skip the optimizer (it doesn't rasterize them); the JPEG goes
+      // SVGs skip the optimizer (it doesn't rasterize them); the bitmaps go
       // through it so a 1254px logo isn't shipped into a 20px slot.
       unoptimized={src.endsWith('.svg')}
       className={cx(shape, 'object-cover')}

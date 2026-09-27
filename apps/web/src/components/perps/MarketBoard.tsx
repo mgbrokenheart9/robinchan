@@ -4,6 +4,7 @@ import type { PerpCategory, PerpMarket } from '@robinchan/shared';
 import { direction, formatPct, formatUsdCompact } from '@robinchan/shared';
 
 import { AgriIcon, ClockIcon, CryptoIcon, LockIcon, StocksIcon } from '@/components/icons';
+import { TickerLogo, hasTickerLogo } from '@/components/TickerCard';
 import { ErrorState, UpdatedAt } from '@/components/states';
 import { PulseDot, Skeleton, cx } from '@/components/ui';
 import type { Resource } from '@/lib/useApi';
@@ -102,16 +103,18 @@ function MarketChip({ market: m, active, onClick }: { market: PerpMarket; active
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      title={m.statusNote ?? `${m.name} (${m.localName})`}
+      title={m.statusNote ?? m.name}
       className={cx(
         'flex min-h-[52px] items-center gap-3 rounded-full border px-4 text-left transition-colors',
         active ? 'border-accent-fg/50 bg-accent/[0.08] shadow-glow-soft' : 'border-border hover:border-text-3',
         unavailable && !active && 'opacity-60',
       )}
     >
+      {/* Real marks only: commodities have none, so no stand-in either. */}
+      {hasTickerLogo(m.symbol) ? <TickerLogo symbol={m.symbol} size={26} /> : null}
       <span className="flex flex-col leading-tight">
         <span className="font-mono text-[13px] tracking-[0.04em] text-text">{m.symbol}</span>
-        <span className="text-[11px] text-text-3">{m.localName}</span>
+        <span className="text-[11px] text-text-3">{m.name}</span>
       </span>
       {unavailable ? (
         <span className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-text-3">
@@ -172,11 +175,9 @@ export function MarketHeader({ market, loading }: { market: PerpMarket | null; l
   return (
     <header className="card px-5 py-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        {hasTickerLogo(m.symbol) ? <TickerLogo symbol={m.symbol} size={28} /> : null}
         <h2 className="font-mono text-[15px] tracking-[0.04em] text-text">{m.symbol}/USD</h2>
-        <span className="text-[13.5px] text-text-2">
-          {m.name}
-          {m.localName !== m.name ? <span className="text-text-3"> · {m.localName}</span> : null}
-        </span>
+        <span className="text-[13.5px] text-text-2">{m.name}</span>
         <StatusPill market={m} />
         {m.source === 'fixture' ? (
           <span
