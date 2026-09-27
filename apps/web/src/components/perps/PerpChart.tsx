@@ -1,9 +1,10 @@
 'use client';
 
+import { useSyncExternalStore, type ReactNode } from 'react';
 import type { CandleInterval, CandleSeries } from '@robinchan/shared';
 import { CANDLE_INTERVALS } from '@robinchan/shared';
 
-import { CandleChart, type PriceLineSpec } from '@/components/charts/CandleChart';
+import { CandleChart, type ChartMode, type PriceLineSpec } from '@/components/charts/CandleChart';
 import { ChartAttribution } from '@/components/charts/ValueChart';
 import { EmptyState, ErrorState, UpdatedAt } from '@/components/states';
 import { Skeleton, cx } from '@/components/ui';
@@ -29,6 +30,7 @@ export function PerpChart({
   lines: PriceLineSpec[];
 }) {
   const bars = candles.data?.candles ?? [];
+  const mode = useSyncExternalStore(subscribeMode, readMode, () => 'area' as const);
   return (
     <section className="card overflow-hidden" aria-label={`${symbol} chart`}>
       <div className="flex h-[52px] items-center justify-between gap-3 border-b border-border-soft px-4">
@@ -49,6 +51,7 @@ export function PerpChart({
           ))}
         </div>
         <div className="flex items-center gap-3">
+          <ModeToggle mode={mode} onMode={writeMode} />
           {candles.data?.source === 'fixture' ? (
             <span
               className="whitespace-nowrap rounded-full border border-warning/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-warning"
@@ -79,7 +82,7 @@ export function PerpChart({
             }
           />
         ) : (
-          <CandleChart candles={bars} fitKey={`${symbol}:${interval}`} lines={lines} height={380} />
+          <CandleChart candles={bars} fitKey={`${symbol}:${interval}`} lines={lines} interval={interval} mode={mode} height={380} />
         )}
       </div>
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
@@ -89,5 +92,81 @@ export function PerpChart({
         <ChartAttribution />
       </div>
     </section>
+  );
+}
+
+/* The chart style comes back next visit, like the interval; the stepped line is the default. */
+const MODE_KEY = 'robinchan.perps-chart-mode';
+let memoryMode: ChartMode | null = null;
+const modeListeners = new Set<() => void>();
+
+function readMode(): ChartMode {
+  if (memoryMode) return memoryMode;
+  try {
+    const saved = window.localStorage.getItem(MODE_KEY);
+    if (saved === 'area' || saved === 'candles') return saved;
+  } catch {
+    /* storage unavailable */
+  }
+  return 'area';
+}
+
+function writeMode(next: ChartMode): void {
+  memoryMode = next;
+  try {
+    window.localStorage.setItem(MODE_KEY, next);
+  } catch {
+    /* applies for this visit */
+  }
+  for (const l of modeListeners) l();
+}
+
+function subscribeMode(listener: () => void): () => void {
+  modeListeners.add(listener);
+  return () => modeListeners.delete(listener);
+}
+
+function ModeToggle({ mode, onMode }: { mode: ChartMode; onMode: (m: ChartMode) => void }) {
+  const options: Array<{ id: ChartMode; label: string; icon: ReactNode }> = [
+    {
+      id: 'area',
+      label: 'Line',
+      icon: (
+        <path d="M2 11h3V7h3v2h3V4h3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      ),
+    },
+    {
+      id: 'candles',
+      label: 'Candles',
+      icon: (
+        <g stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+          <path d="M4.5 2.5v11M11.5 1.5v9" />
+          <rect x="3" y="5" width="3" height="5" rx="0.6" fill="currentColor" />
+          <rect x="10" y="3.5" width="3" height="4.5" rx="0.6" fill="none" />
+        </g>
+      ),
+    },
+  ];
+  return (
+    <div className="flex items-center rounded-full bg-surface-2 p-0.5" role="group" aria-label="Chart style">
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onMode(o.id)}
+          aria-pressed={mode === o.id}
+          aria-label={o.label}
+          title={o.label}
+          className={cx(
+            'grid h-[26px] w-[30px] place-items-center rounded-full transition-colors',
+            mode === o.id ? 'bg-surface text-text shadow-sm' : 'text-text-3 hover:text-text',
+          )}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            {o.icon}
+          </svg>
+        </button>
+      ))}
+    </div>
   );
 }
