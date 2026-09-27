@@ -164,7 +164,7 @@ export function PerpsView({
       <PageHeader
         eyebrow="Perps"
         title="Crypto and stock perpetuals"
-        lead="Long or short crypto (up to 20×) and US stocks (up to 5×) — priced by Chainlink on Robinhood Chain, settled in USDC, signed in your own wallet. The agri markets are listed, but Chainlink has no feed for them yet."
+        lead={`Long or short crypto (up to 20×) and US stocks (up to 5×) — priced by Chainlink on Robinhood Chain, settled in ${cfg.perpsCollateral}, signed in your own wallet. The agri markets are listed, but Chainlink has no feed for them yet.`}
         aside={<Pill tone={cfg.perpsVenue === 'agri-perp' ? 'accent' : 'muted'}>{venueLabel}</Pill>}
       />
 

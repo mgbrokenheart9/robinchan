@@ -27,6 +27,13 @@ export type PreflightInput = {
   owner?: string;
   deployer?: string;
   keeper?: string;
+  /**
+   * One wallet deploys, owns and runs the keeper (SINGLE_KEY=true): the owner
+   * check is a warning instead of a failure, and the keeper is the deployer.
+   * Whoever gets that key can pause markets, change fees within their bounds
+   * and withdraw the pool's unreserved liquidity — never traders' collateral.
+   */
+  singleKey?: boolean;
   minExecutionFeeWei?: string;
   maxOiUsd?: string;
   seedUsdc?: string;
@@ -169,10 +176,11 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
         client.readContract({ address: usdc, abi: ERC20_ABI, functionName: 'decimals' }),
         client.readContract({ address: usdc, abi: ERC20_ABI, functionName: 'totalSupply' }),
       ]);
-      const ok = decimals === 6 && /usdc/i.test(symbol);
+      // USDC, or USDG — what bridged USDC arrives as on Robinhood Chain. Both 6 decimals.
+      const ok = decimals === 6 && /^(usdc|usdg)$/i.test(symbol);
       add('usdc', ok ? 'ok' : 'fail', `${symbol}, ${decimals} decimals, ${Number(formatUnits(supply, decimals)).toLocaleString('en-US')} in circulation`);
       if (ok && supply < parseUnits('1000000', 6)) {
-        add('usdc: adoption', 'warn', 'under 1M in circulation on this chain — confirm it’s the USDC your users actually hold');
+        add('usdc: adoption', 'warn', `under 1M in circulation on this chain — confirm it’s the ${symbol} your users actually hold (on Robinhood Chain that's USDG)`);
       }
     } catch (err) {
       add('usdc', 'fail', `${usdc} isn't a readable ERC-20 (${short(err)})`);
@@ -181,7 +189,14 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
 
   /* ---- Owner (a Safe) ---- */
   const owner = input.owner && ADDRESS.test(input.owner) ? (input.owner as Address) : null;
-  if (!owner) {
+  const deployerIsOwner = !owner || owner.toLowerCase() === input.deployer?.toLowerCase();
+  if (input.singleKey && deployerIsOwner) {
+    add(
+      'owner',
+      'warn',
+      'one key (SINGLE_KEY): the deployer owns the contracts and runs the keeper — whoever gets it can pause markets, change fees within bounds and withdraw the pool’s unreserved liquidity (never traders’ collateral). Keep the pool small.',
+    );
+  } else if (!owner) {
     add('owner', required(false), 'OWNER_ADDRESS is not set — the contracts would stay owned by the deployer key');
   } else {
     const code = await client.getCode({ address: owner });
@@ -214,8 +229,9 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
   } else {
     add('deployer', 'warn', 'DEPLOYER_ADDRESS not set — its gas and seed balances not checked');
   }
-  if (input.keeper && ADDRESS.test(input.keeper)) {
-    const balance = await client.getBalance({ address: input.keeper as Address });
+  const keeper = input.keeper ?? (input.singleKey ? input.deployer : undefined);
+  if (keeper && ADDRESS.test(keeper)) {
+    const balance = await client.getBalance({ address: keeper as Address });
     const need = 2_000_000n * gasPrice * 1_000n; // about a thousand keeper transactions
     add('keeper: gas', balance >= need ? 'ok' : 'warn', `${formatEther(balance)} ETH (a thousand transactions need about ${formatEther(need)})`);
   } else {

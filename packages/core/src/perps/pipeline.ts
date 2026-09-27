@@ -36,11 +36,12 @@ import {
   paperFaucetAmount,
   paperFaucetCap,
   perpCloseFeeBps,
+  perpCollateralSymbol,
   perpExecutionFeeWei,
   perpFeeBps,
   perpMaxProfitMultiple,
-  perpSlippageBps,
   perpsEnabled,
+  perpSlippageBps,
   perpsVenue,
 } from './config';
 import { PerpError } from './errors';
@@ -239,7 +240,7 @@ export async function quotePerpOpen(
   }
   const t = terms(venue, chain);
   if (collateral < t.minCollateral) {
-    throw new PerpError('BAD_REQUEST', `The minimum collateral is ${t.minCollateral} USDC.`, 400, 'collateral');
+    throw new PerpError('BAD_REQUEST', `The minimum collateral is ${t.minCollateral} ${perpCollateralSymbol()}.`, 400, 'collateral');
   }
 
   const size = round6(collateral * leverage);
@@ -302,7 +303,7 @@ export async function quotePerpOpen(
     if (account.free + EPS < collateral + fee) {
       throw new PerpError(
         'INSUFFICIENT_BALANCE',
-        `This needs ${(collateral + fee).toFixed(2)} USDC (collateral + fee) and you have ${account.free.toFixed(2)} free.`,
+        `This needs ${(collateral + fee).toFixed(2)} ${perpCollateralSymbol()} (collateral + fee) and you have ${account.free.toFixed(2)} free.`,
         400,
         'collateral',
       );
@@ -341,7 +342,7 @@ export async function quotePerpOpen(
     if (depositNeeded > Number(w.balance) / 1e6 + EPS) {
       throw new PerpError(
         'INSUFFICIENT_BALANCE',
-        `This needs ${(collateral + fee).toFixed(2)} USDC; you have ${free.toFixed(2)} in the vault and ${(Number(w.balance) / 1e6).toFixed(2)} in the wallet.`,
+        `This needs ${(collateral + fee).toFixed(2)} ${perpCollateralSymbol()}; you have ${free.toFixed(2)} in the vault and ${(Number(w.balance) / 1e6).toFixed(2)} in the wallet.`,
         400,
         'collateral',
       );
@@ -366,7 +367,7 @@ export async function quotePerpOpen(
         data: encodeFunctionData({ abi: ERC20_ABI, functionName: 'approve', args: [c.vault, deposit] }),
         value: '0',
         chainId,
-        label: 'Approve USDC',
+        label: `Approve ${perpCollateralSymbol()}`,
       });
     }
     txs.push({
@@ -652,7 +653,7 @@ export async function quotePerpCollateral(user: PerpUser, input: { kind: 'deposi
   const txs: TxRequest[] = [];
   if (input.kind === 'deposit') {
     if (w.balance < units) {
-      throw new PerpError('INSUFFICIENT_BALANCE', `The wallet holds ${(Number(w.balance) / 1e6).toFixed(2)} USDC.`, 400, 'amount');
+      throw new PerpError('INSUFFICIENT_BALANCE', `The wallet holds ${(Number(w.balance) / 1e6).toFixed(2)} ${perpCollateralSymbol()}.`, 400, 'amount');
     }
     if (w.allowance < units) {
       txs.push({
@@ -660,7 +661,7 @@ export async function quotePerpCollateral(user: PerpUser, input: { kind: 'deposi
         data: encodeFunctionData({ abi: ERC20_ABI, functionName: 'approve', args: [c.vault, units] }),
         value: '0',
         chainId: cs.chainId,
-        label: 'Approve USDC',
+        label: `Approve ${perpCollateralSymbol()}`,
       });
     }
     txs.push({
@@ -668,13 +669,13 @@ export async function quotePerpCollateral(user: PerpUser, input: { kind: 'deposi
       data: encodeFunctionData({ abi: AGRI_VAULT_ABI, functionName: 'deposit', args: [units] }),
       value: '0',
       chainId: cs.chainId,
-      label: 'Deposit USDC',
+      label: `Deposit ${perpCollateralSymbol()}`,
     });
   } else {
     if (w.free < units) {
       throw new PerpError(
         'INSUFFICIENT_BALANCE',
-        `Only ${(Number(w.free) / 1e6).toFixed(2)} USDC is free; collateral backing open positions can't be withdrawn.`,
+        `Only ${(Number(w.free) / 1e6).toFixed(2)} ${perpCollateralSymbol()} is free; collateral backing open positions can't be withdrawn.`,
         400,
         'amount',
       );
@@ -684,7 +685,7 @@ export async function quotePerpCollateral(user: PerpUser, input: { kind: 'deposi
       data: encodeFunctionData({ abi: AGRI_VAULT_ABI, functionName: 'withdraw', args: [units] }),
       value: '0',
       chainId: cs.chainId,
-      label: 'Withdraw USDC',
+      label: `Withdraw ${perpCollateralSymbol()}`,
     });
   }
   const id = newId();
@@ -1070,7 +1071,7 @@ export async function perpAccount(user: PerpUser): Promise<PerpAccount> {
     openPositions: 0,
     walletUsdc: null,
     canFaucet: false,
-    collateralSymbol: 'USDC',
+    collateralSymbol: perpCollateralSymbol(),
   };
   if (!venue) return empty;
   const positions = await perpPositions(user);

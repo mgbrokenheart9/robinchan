@@ -5,6 +5,7 @@ import {
   chainConfig,
   heatReadsEnabled,
   isDev,
+  perpCollateralSymbol,
   perpsEnabled,
   perpsVenue,
   tradingEnabled,
@@ -28,6 +29,8 @@ export type PublicConfig = {
   perps: boolean;
   /** Where perps positions live: `paper` (dev), `agri-perp` (the contracts), or not configured. */
   perpsVenue: PerpVenueId | null;
+  /** The settlement stablecoin traders deposit (USDG on Robinhood Chain). */
+  perpsCollateral: string;
   dev: boolean;
 };
 
@@ -41,6 +44,7 @@ export function publicConfig(): PublicConfig {
     limitOrders: venue === 'paper',
     perps: perpsEnabled(),
     perpsVenue: perpsVenue(),
+    perpsCollateral: perpCollateralSymbol(),
     dev: isDev(),
   };
 }

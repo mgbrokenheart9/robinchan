@@ -16,6 +16,7 @@
  *   MAX_OI_USD              open-interest cap per side per market at launch
  *   SEED_LIQUIDITY_USDC     the pool's first liquidity, from the deployer
  *   ALLOW_MOCK_FEEDS        testnet only: MockAggregators instead of Chainlink
+ *   SINGLE_KEY              true: one wallet deploys, owns and keeps (no Safe) — see lib/preflight.ts
  *   CHAINLINK_DIRECTORY_URL Chainlink's feed list for the chain (default: Robinhood Chain mainnet's)
  */
 import { createPublicClient, http, type PublicClient } from 'viem';
@@ -26,7 +27,8 @@ const env = (name: string): string | undefined => process.env[name]?.trim() || u
 
 const rpc = env('RPC_URL');
 if (!rpc) throw new Error('Set RPC_URL to the chain to check, e.g. RPC_URL=https://robinhood.drpc.org');
-const client = createPublicClient({ transport: http(rpc, { timeout: 20_000 }) }) as PublicClient;
+// Public endpoints rate-limit bursts (dRPC's free tier refuses some parallel reads): retry with backoff.
+const client = createPublicClient({ transport: http(rpc, { timeout: 20_000, retryCount: 6, retryDelay: 1_500 }) }) as PublicClient;
 const chainId = await client.getChainId();
 const mainnet = chainId === 4663;
 
@@ -39,6 +41,7 @@ const checks = await preflight({
   owner: env('OWNER_ADDRESS'),
   deployer: env('DEPLOYER_ADDRESS'),
   keeper: env('KEEPER_ADDRESS'),
+  singleKey: env('SINGLE_KEY') === 'true',
   minExecutionFeeWei: env('MIN_EXECUTION_FEE_WEI'),
   maxOiUsd: env('MAX_OI_USD'),
   seedUsdc: env('SEED_LIQUIDITY_USDC'),

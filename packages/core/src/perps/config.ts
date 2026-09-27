@@ -107,6 +107,13 @@ export const perpMaxProfitMultiple = (): number => num('PERPS_MAX_PROFIT_MULTIPL
 /** Per side, per market, USD — the paper venue's copy of the contract's `maxOi`. */
 export const perpMaxOpenInterest = (): number => num('PERPS_MAX_OI_USD', 1_000_000);
 /** Test USDC one faucet press gives, and the most a paper account can hold from it. */
+/**
+ * The settlement stablecoin's symbol, as traders see it. On Robinhood Chain
+ * that's USDG — bridged USDC arrives as Paxos' Global Dollar, and the chain's
+ * bridged USDC has barely any supply. 6 decimals either way.
+ */
+export const perpCollateralSymbol = (): string => process.env.PERPS_COLLATERAL_SYMBOL?.trim() || 'USDC';
+
 export const paperFaucetAmount = (): number => num('PERPS_FAUCET_USDC', 10_000);
 export const paperFaucetCap = (): number => num('PERPS_FAUCET_CAP_USDC', 100_000);
 

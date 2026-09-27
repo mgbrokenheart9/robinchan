@@ -36,6 +36,12 @@ Don't deploy with real money until every line is true:
 | **Deployer** | A fresh key used once, for the deploy. Owns nothing afterwards | Gas (≈0.01 ETH) and the pool seed in USDC |
 | **Keeper** | A fresh key for the worker (Railway secret). Only calls permissionless functions; earns the execution fees | Gas: 0.02–0.05 ETH, topped up |
 
+**Simplest setup — one wallet (`SINGLE_KEY=true`).** The deployer also owns the contracts and
+runs the keeper; no Safe. The preflight then only warns about the owner. The key sits on the
+worker's server, so whoever gets it can pause markets, change fees within their bounds and
+withdraw the pool's unreserved liquidity (never traders' collateral): keep the pool small, and
+move ownership to a Safe later with `transferOwnership` on all three contracts.
+
 Create the Safe with the canonical v1.4.1 contracts above — in the Safe{Wallet} app if it lists
 Robinhood Chain, otherwise with Safe's CLI or protocol-kit against that factory.
 

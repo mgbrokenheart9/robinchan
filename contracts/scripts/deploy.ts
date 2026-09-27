@@ -28,6 +28,8 @@
  *   MAX_OI_USD             Open-interest cap per side per market (launch caps;
  *                          the Safe raises them later with setMarket).
  *   ALLOW_MOCK_FEEDS       Testnet only: MockAggregators instead of Chainlink.
+ *   SINGLE_KEY             true: one wallet deploys, owns and runs the keeper,
+ *                          without a Safe (the preflight only warns).
  *   KEEPER_ADDRESS         Checked by the preflight (see lib/preflight.ts).
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -75,6 +77,7 @@ if (!local) {
       owner: env('OWNER_ADDRESS'),
       deployer: deployer.account.address,
       keeper: env('KEEPER_ADDRESS'),
+      singleKey: env('SINGLE_KEY') === 'true',
       minExecutionFeeWei: env('MIN_EXECUTION_FEE_WEI'),
       maxOiUsd: env('MAX_OI_USD'),
       seedUsdc: env('SEED_LIQUIDITY_USDC'),

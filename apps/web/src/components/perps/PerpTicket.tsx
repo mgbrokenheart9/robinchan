@@ -13,6 +13,7 @@ import {
 import { SignButton } from '@/components/orders/OrderParts';
 import { cx } from '@/components/ui';
 import { ApiClientError, apiFetch } from '@/lib/api';
+import { useConfig } from '@/lib/config';
 import { usePerpSigner } from '@/lib/usePerpSigner';
 
 import { fundingLabel, leverageMarks, marketPrice } from './format';
@@ -37,6 +38,7 @@ export function PerpTicket({
   onSettled: (record: PerpActionRecord) => void;
 }) {
   const signer = usePerpSigner({ onSettled });
+  const collateralSymbol = useConfig().perpsCollateral;
   const [side, setSide] = useState<PerpSide>('long');
   const [collateral, setCollateral] = useState('');
   const [leverage, setLeverage] = useState(Math.min(5, market.maxLeverage));
@@ -124,7 +126,7 @@ export function PerpTicket({
         ['Funding', fundingLabel(quote.fundingRatePerHour), 'muted'],
         ...(onChain
           ? ([
-              ['From wallet', quote.depositNeeded > 0 ? `${formatUsd(quote.depositNeeded)} USDC` : 'none', 'muted'],
+              ['From wallet', quote.depositNeeded > 0 ? `${formatUsd(quote.depositNeeded)} ${collateralSymbol}` : 'none', 'muted'],
               ['Execution + network fee', formatNative(quote.executionFee + quote.estGas, quote.gasSymbol), 'muted'],
             ] as Array<[string, string, 'muted']>)
           : []),
@@ -190,7 +192,7 @@ export function PerpTicket({
             aria-describedby="perp-collateral-msg"
             className="h-12 min-w-0 flex-1 bg-transparent font-mono text-[18px] text-text placeholder:text-text-3 focus:outline-none"
           />
-          <span className="font-mono text-[13px] text-text-3">USDC</span>
+          <span className="font-mono text-[13px] text-text-3">{collateralSymbol}</span>
         </div>
         <div className="mt-2 grid grid-cols-4 gap-1.5">
           {[0.25, 0.5, 0.75, 1].map((f) => (
