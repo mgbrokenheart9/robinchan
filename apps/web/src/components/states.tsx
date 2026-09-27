@@ -128,7 +128,10 @@ export function ConnectGate({
   if (s.resolving) return <>{skeleton}</>;
 
   return (
-    <div className="relative">
+    // The prompt card is absolutely placed over the sample: a short sample
+    // (two sample positions) must still leave room for it, or it spills onto
+    // whatever sits below the gate.
+    <div className={cx('relative', !compact && 'min-h-[400px]')}>
       <div aria-hidden inert className="pointer-events-none select-none opacity-70 blur-[5px] saturate-50">
         {sample}
       </div>

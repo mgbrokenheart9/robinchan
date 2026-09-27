@@ -1,4 +1,4 @@
-import type { CandleSeries, PerpMarket, PerpMarketStats } from '@robinchan/shared';
+import type { CandleSeries, PerpMarket, PerpMarketStats, PerpVenueInfo } from '@robinchan/shared';
 import { CANDLE_INTERVALS, PERP_CATEGORIES, perpMarket } from '@robinchan/shared';
 import {
   checkPendingPerpAction,
@@ -10,6 +10,7 @@ import {
   perpMarketStats,
   perpMarketViews,
   perpPositions,
+  perpVenueInfo,
   perpWaitingOrders,
   quotePerpCancel,
   quotePerpClose,
@@ -100,6 +101,9 @@ export function perpsRoutes(app: ApiRouter): void {
     if (!stats) throw new ApiFailure('NOT_FOUND', `${parsed.data.symbol.toUpperCase()} isn't a perps market`, 404);
     return envelope<PerpMarketStats>(stats, await feedsFreshness());
   });
+
+  /** Where the venue lives — network, contracts, token, pool, feeds — for anyone to check on the explorer. */
+  app.get('/api/perps/venue', async () => envelope<PerpVenueInfo>(await perpVenueInfo(), { stale: false }));
 
   /** The latest cached price. (The brief also returned oracle update data here: Chainlink's feeds are pushed on chain, so there's none.) */
   app.get('/api/perps/price/:symbol', async (request) => {

@@ -52,6 +52,25 @@ export function resolveChainConfig(env: {
   return (env.rcEnv ?? 'dev') === 'dev' ? DEV_FALLBACK : null;
 }
 
+/** Robinhood Chain mainnet. */
+export const ROBINHOOD_CHAIN_MAINNET_ID = 4663;
+/** Robinhood Chain's public testnet. */
+export const ROBINHOOD_CHAIN_TESTNET_ID = 46630;
+
+export function isMainnet(chain: Pick<ChainConfig, 'id' | 'devFallback'> | null): boolean {
+  return Boolean(chain && !chain.devFallback && chain.id === ROBINHOOD_CHAIN_MAINNET_ID);
+}
+
+/** What the top bar says about the network: never "testnet" on mainnet, never "mainnet" on anything else. */
+export function networkLabel(chain: Pick<ChainConfig, 'id' | 'devFallback'> | null): string {
+  if (!chain) return 'no network';
+  if (chain.devFallback) return 'testnet · dev';
+  if (chain.id === ROBINHOOD_CHAIN_MAINNET_ID) return 'mainnet';
+  if (chain.id === ROBINHOOD_CHAIN_TESTNET_ID) return 'testnet';
+  if (chain.id === 31337) return 'local chain';
+  return `chain ${chain.id}`;
+}
+
 export function explorerTxUrl(chain: ChainConfig | null, hash: string): string | null {
   if (!chain?.explorerUrl || !/^0x[0-9a-fA-F]{64}$/.test(hash)) return null;
   return `${chain.explorerUrl}/tx/${hash}`;

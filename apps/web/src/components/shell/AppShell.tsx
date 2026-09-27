@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import { isMainnet, networkLabel } from '@robinchan/shared';
 
 import { CompanionDock } from '@/components/companion/CompanionDock';
 import { PeekingCompanion } from '@/components/companion/PeekingCompanion';
@@ -9,6 +10,7 @@ import { MenuIcon } from '@/components/icons';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ConnectButton, WalletPicker } from '@/components/wallet/ConnectButton';
 import { Pill, PulseDot, cx } from '@/components/ui';
+import { useOptionalConfig } from '@/lib/config';
 import { NAV_ITEMS } from '@/lib/nav';
 
 import { SidebarContent } from './Sidebar';
@@ -22,6 +24,7 @@ import { SidebarContent } from './Sidebar';
 export function AppShell({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
+  const chain = useOptionalConfig()?.chain ?? null;
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -101,10 +104,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        <Pill tone="accent" className="hidden sm:inline-flex">
-          <PulseDot />
-          testnet
-        </Pill>
+        {chain ? (
+          <Pill tone={isMainnet(chain) ? 'accent' : 'muted'} className="hidden sm:inline-flex">
+            <PulseDot />
+            {networkLabel(chain)}
+          </Pill>
+        ) : null}
 
         <ThemeToggle />
 

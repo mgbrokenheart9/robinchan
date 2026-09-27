@@ -11,7 +11,7 @@ import type {
   PerpPosition,
   PerpWaitingOrder,
 } from '@robinchan/shared';
-import { CANDLE_INTERVALS, formatPct, perpMarket } from '@robinchan/shared';
+import { CANDLE_INTERVALS, formatPct, isMainnet, perpMarket } from '@robinchan/shared';
 
 import type { PriceLineSpec } from '@/components/charts/CandleChart';
 import { useCompanion, usePageContext } from '@/components/companion/CompanionProvider';
@@ -28,6 +28,7 @@ import { PerpChart } from './PerpChart';
 import { PerpTicket, TicketPlaceholder } from './PerpTicket';
 import { PositionsPanel } from './PositionsPanel';
 import { SAMPLE_ACCOUNT, SAMPLE_POSITIONS } from './sample';
+import { VenueCard } from './VenueCard';
 
 const POLL = { markets: 6_000, candles: 30_000, positions: 6_000, account: 15_000, orders: 15_000, history: 60_000 } as const;
 
@@ -157,7 +158,13 @@ export function PerpsView({
   }, [market, symbol, companion]);
 
   const venueLabel =
-    cfg.perpsVenue === 'paper' ? 'paper venue · dev' : cfg.perpsVenue === 'agri-perp' ? 'on chain · AgriPerp' : 'venue not configured';
+    cfg.perpsVenue === 'paper'
+      ? 'paper venue · dev'
+      : cfg.perpsVenue === 'agri-perp'
+        ? isMainnet(cfg.chain)
+          ? 'live on Robinhood Chain mainnet'
+          : `on chain · ${cfg.chain?.name ?? 'AgriPerp'}`
+        : 'venue not configured';
 
   return (
     <>
@@ -195,6 +202,8 @@ export function PerpsView({
             </ConnectGate>
           </div>
         </div>
+
+        {onChain ? <VenueCard /> : null}
       </div>
     </>
   );

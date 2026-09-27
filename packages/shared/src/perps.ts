@@ -458,6 +458,22 @@ export type PerpActionRecord = {
   updatedAt: string;
 };
 
+/**
+ * Where the on-chain venue lives, for anyone to check on the explorer
+ * (`/api/perps/venue`): the network, the contracts, the settlement token,
+ * the pool, and each market's Chainlink feed as the contracts read it.
+ */
+export type PerpVenueInfo = {
+  venue: PerpVenueId | null;
+  chain: { id: number; name: string; explorerUrl: string | null; mainnet: boolean } | null;
+  contracts: { perp: Address; vault: Address; feed: Address } | null;
+  collateral: { symbol: string; address: Address | null };
+  /** USD (the settlement token's units). */
+  pool: { balance: number; reserved: number; available: number } | null;
+  deployBlock: number | null;
+  feeds: Array<{ symbol: string; feed: Address; description: string }>;
+};
+
 /** AgriPerp.CANCEL_DELAY: a cancel releases the order this long after it's asked for, unless its round lands first. */
 export const PERP_CANCEL_DELAY_SEC = 300;
 
