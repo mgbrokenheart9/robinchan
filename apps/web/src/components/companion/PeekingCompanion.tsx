@@ -39,7 +39,6 @@ const WIDE_QUERY = '(min-width: 1280px)';
 /** How long the greeting stays up (paused while hovered). */
 const BUBBLE_MS = 14_000;
 
-const DISMISS_KEY = 'robinchan.peek-dismissed';
 /** Where she's been dragged to (px lifted from the bottom), kept across pages and visits. */
 const LIFT_KEY = 'robinchan.peek-lift';
 
@@ -192,15 +191,6 @@ function clampLift(next: number, from: number, figTop: number): number {
   return Math.round(Math.min(max, Math.max(min, next)));
 }
 
-function readDismissed(): string[] {
-  try {
-    const raw = window.sessionStorage.getItem(DISMISS_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Robinchan peeking in from the right edge of the dashboard (Market, Heat,
  * Perps, Portfolio): the same Live2D model as `/robinchan`, leaning in from off
@@ -214,8 +204,8 @@ function readDismissed(): string[] {
  * Mounted once in the dashboard shell, so moving between those pages keeps
  * the model loaded — she ducks out and peeks back in with a new line rather
  * than reloading. Decorative apart from the bubble, so the figure ignores
- * the pointer and never blocks the page under it. The × sends her away from
- * that page for the rest of the session.
+ * the pointer and never blocks the page under it. The × closes her note;
+ * she stays, and a tap on her brings it back.
  *
  * Works alongside `<CompanionDock>`: where the dock exists (Heat, Perps,
  * Portfolio) "Ask me about it" opens its chat with the question seeded;
@@ -249,9 +239,6 @@ export function PeekingCompanion() {
   const [boot, setBoot] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [dismissed, setDismissed] = useState<string[]>(() =>
-    typeof window === 'undefined' ? [] : readDismissed(),
-  );
   /** Which page she has currently peeked in on — lags `page` so she ducks out first. */
   const [shownFor, setShownFor] = useState<string | null>(null);
   const [bubbleFor, setBubbleFor] = useState<string | null>(null);
@@ -266,7 +253,7 @@ export function PeekingCompanion() {
   const drag = useRef<{ y: number; lift: number; figTop: number; moved: boolean } | null>(null);
 
   const roomy = !page || width >= (PAGES[page]?.minWidth ?? 0);
-  const active = Boolean(page && wide && roomy && !dismissed.includes(page));
+  const active = Boolean(page && wide && roomy);
 
   // Hold the model back until the page itself has settled.
   useEffect(() => {
@@ -414,16 +401,8 @@ export function PeekingCompanion() {
     saveLift(next);
   };
 
-  const dismiss = () => {
-    if (!page) return;
-    const next = [...new Set([...dismissed, page])];
-    setDismissed(next);
-    try {
-      window.sessionStorage.setItem(DISMISS_KEY, JSON.stringify(next));
-    } catch {
-      /* Not persisted; she still leaves for this view. */
-    }
-  };
+  // The × closes her note, not her: a tap on her brings it back.
+  const dismiss = () => setBubbleFor(null);
 
   const onStatus = (status: StageStatus) => {
     if (status === 'ready') setReady(true);
@@ -497,7 +476,7 @@ export function PeekingCompanion() {
               <button
                 type="button"
                 onClick={dismiss}
-                aria-label="Hide Robinchan on this page"
+                aria-label="Close Robinchan's note"
                 className="-mr-1.5 flex h-7 w-7 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-overlay/[0.06] hover:text-text"
               >
                 <CloseIcon width={14} height={14} />
