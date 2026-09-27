@@ -251,6 +251,8 @@ create table if not exists perp_actions (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+-- A perp_actions table from before on-chain orders has no order id.
+alter table perp_actions add column if not exists chain_order_id numeric;
 -- On chain: when the trader asked for a waiting order back (released five minutes on).
 alter table perp_actions add column if not exists cancel_requested_at timestamptz;
 create index if not exists perp_actions_user_idx on perp_actions (user_id, created_at desc);
