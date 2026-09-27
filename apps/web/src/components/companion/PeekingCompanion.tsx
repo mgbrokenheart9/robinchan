@@ -11,7 +11,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { HeatScore, MarketIndex } from '@robinchan/shared';
+import type { HeatScore, MarketIndex, PerpMarket } from '@robinchan/shared';
+import { formatPrice } from '@robinchan/shared';
 
 import { ArrowRightIcon, CloseIcon } from '@/components/icons';
 import type { Live2DHandle, StageStatus } from '@/components/live2d/Live2DCanvas';
@@ -60,9 +61,10 @@ type Greeting = { title: string; text: string; ask: string };
 /**
  * One greeting per page. `load` turns the page's own live data into a line
  * about what's actually on screen; `fallback` shows until it arrives, or
- * if it can't.
+ * if it can't. `minWidth` keeps her off a page until the margin right of
+ * its content can hold her and her note.
  */
-const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting | null> }> = {
+const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting | null>; minWidth?: number }> = {
   '/market': {
     fallback: {
       title: 'Welcome to the market!',
@@ -106,6 +108,34 @@ const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting 
       };
     },
   },
+  '/perps': {
+    // The order ticket is the content's right column: below ~1880px she and
+    // her note would sit on it, so she waits for a margin wide enough.
+    minWidth: 1880,
+    fallback: {
+      title: 'Perps on Robinhood Chain',
+      text: 'Long or short crypto and US stocks, priced by Chainlink and settled on chain in your own wallet. Pick a market on the board to start.',
+      ask: 'How does a perps position work here?',
+    },
+    load: async () => {
+      const env = await getEnvelope<PerpMarket[]>('/api/perps/markets', []);
+      const priced = (symbol: string) => env.data.find((m) => m.symbol === symbol && m.price != null);
+      const btc = priced('BTC');
+      const eth = priced('ETH');
+      if (!btc || !eth) return null;
+      const stocks = env.data.filter((m) => m.category === 'stocks' && m.status !== 'unavailable');
+      const session = stocks.length
+        ? stocks.some((m) => m.status === 'open')
+          ? 'The US stock markets are open too.'
+          : 'The stock markets are closed right now, so those wait for the next session.'
+        : '';
+      return {
+        title: 'Perps pulse',
+        text: `Chainlink has BTC at $${formatPrice(btc.price)} and ETH at $${formatPrice(eth.price)}. ${session}`.trim(),
+        ask: 'How does a perps position work here?',
+      };
+    },
+  },
   '/portfolio': {
     fallback: {
       title: 'Your portfolio',
@@ -118,6 +148,11 @@ const PAGES: Record<string, { fallback: Greeting; load?: () => Promise<Greeting 
 function pageFor(pathname: string | null): string | null {
   if (!pathname) return null;
   return Object.keys(PAGES).find((p) => pathname === p || pathname.startsWith(`${p}/`)) ?? null;
+}
+
+function subscribeWidth(onChange: () => void) {
+  window.addEventListener('resize', onChange);
+  return () => window.removeEventListener('resize', onChange);
 }
 
 function subscribeWide(onChange: () => void) {
@@ -164,7 +199,7 @@ function readDismissed(): string[] {
 
 /**
  * Robinchan peeking in from the right edge of the dashboard (Market, Heat,
- * Portfolio): the same Live2D model as `/robinchan`, leaning in from off
+ * Perps, Portfolio): the same Live2D model as `/robinchan`, leaning in from off
  * screen with a smile and a little nod (CSS), and dropping a one-line read
  * of the page in a bubble above her head.
  *
@@ -178,13 +213,13 @@ function readDismissed(): string[] {
  * the pointer and never blocks the page under it. The × sends her away from
  * that page for the rest of the session.
  *
- * Works alongside `<CompanionDock>`: where the dock exists (Heat,
+ * Works alongside `<CompanionDock>`: where the dock exists (Heat, Perps,
  * Portfolio) "Ask me about it" opens its chat with the question seeded;
  * on Market, which has no dock, it goes to `/robinchan`. She ducks out
  * while the dock's chat panel is open, since it covers this corner.
  */
 /** Pages where `<CompanionDock>` renders its chat panel. */
-const DOCKED = new Set(['/heat', '/portfolio']);
+const DOCKED = new Set(['/heat', '/perps', '/portfolio']);
 
 export function PeekingCompanion() {
   const companion = useCompanion();
@@ -194,6 +229,11 @@ export function PeekingCompanion() {
     subscribeWide,
     () => window.matchMedia(WIDE_QUERY).matches,
     () => false,
+  );
+  const width = useSyncExternalStore(
+    subscribeWidth,
+    () => window.innerWidth,
+    () => 0,
   );
 
   const handle = useRef<Live2DHandle | null>(null);
@@ -217,7 +257,8 @@ export function PeekingCompanion() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const drag = useRef<{ y: number; lift: number; figTop: number; moved: boolean } | null>(null);
 
-  const active = Boolean(page && wide && !dismissed.includes(page));
+  const roomy = !page || width >= (PAGES[page]?.minWidth ?? 0);
+  const active = Boolean(page && wide && roomy && !dismissed.includes(page));
 
   // Hold the model back until the page itself has settled.
   useEffect(() => {

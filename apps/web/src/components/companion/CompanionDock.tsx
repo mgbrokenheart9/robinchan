@@ -22,9 +22,9 @@ import { sendChat } from '@/lib/sendChat';
 import { useCompanion } from './CompanionProvider';
 
 /**
- * Robinchan on every dashboard page (Trade-Heat-Portfolio §2): a small
- * avatar bottom-right that opens the chat — the same thread as `/robinchan`,
- * with the page's context attached to each message. Text only here; her
+ * Robinchan's chat on the dashboard pages (Trade-Heat-Portfolio §2) — the
+ * same thread as `/robinchan`, with the page's context attached to each
+ * message, opened from the peeking Robinchan's note. Text only here; her
  * voice and full stage live on `/robinchan`.
  *
  * Not rendered on `/market`: that page carries no character likeness
@@ -39,51 +39,10 @@ const PAGE_LABEL: Record<string, string> = {
 export function CompanionDock() {
   const c = useCompanion();
   if (!(c.context.page in PAGE_LABEL)) return null;
-  return (
-    <>
-      <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex max-w-[calc(100vw-32px)] items-end gap-2.5 sm:bottom-6 sm:right-6">
-        {c.hint && !c.open ? (
-          // One line, beside the avatar — it must never cover the order ticket.
-          <button
-            type="button"
-            onClick={() => c.setOpen(true)}
-            className="pointer-events-auto mb-1.5 flex max-w-[min(420px,calc(100vw-120px))] items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-left text-[13px] text-text shadow-[0_16px_40px_-24px_rgba(0,0,0,0.6)]"
-          >
-            <span className="truncate">{c.hint.text}</span>
-            <span
-              role="button"
-              tabIndex={-1}
-              aria-label="Dismiss"
-              onClick={(e) => {
-                e.stopPropagation();
-                c.dismissHint();
-              }}
-              className="-mr-1 shrink-0 text-text-3 hover:text-text"
-            >
-              <CloseIcon width={14} height={14} />
-            </span>
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => c.setOpen(!c.open)}
-          aria-expanded={c.open}
-          aria-controls="companion-panel"
-          aria-label={c.open ? 'Close chat with Robinchan' : 'Chat with Robinchan'}
-          className="pointer-events-auto relative flex h-14 w-14 shrink-0 items-end justify-center overflow-hidden rounded-full border border-border bg-surface shadow-[0_16px_40px_-20px_rgba(0,0,0,0.6)] transition-transform hover:-translate-y-0.5"
-        >
-          <Avatar height={60} />
-          {c.unread > 0 ? (
-            <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 font-mono text-[10px] text-accent-ink">
-              {c.unread}
-            </span>
-          ) : null}
-        </button>
-      </div>
-      {/* Re-keyed on each "Ask Robinchan", so the new question lands in the composer. */}
-      {c.open ? <Panel key={c.draftSeq} /> : null}
-    </>
-  );
+  // No avatar button of its own: the peeking Robinchan's "Ask me about it"
+  // (and a heat row's "Ask Robinchan") opens the chat.
+  // Re-keyed on each "Ask Robinchan", so the new question lands in the composer.
+  return c.open ? <Panel key={c.draftSeq} /> : null;
 }
 
 function Panel() {
@@ -132,7 +91,7 @@ function Panel() {
     <section
       id="companion-panel"
       aria-label="Chat with Robinchan"
-      className="fixed bottom-[88px] right-4 z-40 flex h-[min(580px,calc(100dvh-120px))] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-[0_32px_80px_-30px_rgba(0,0,0,0.7)] sm:right-6"
+      className="fixed bottom-4 right-4 z-40 flex h-[min(580px,calc(100dvh-112px))] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-card border border-border bg-surface shadow-[0_32px_80px_-30px_rgba(0,0,0,0.7)] sm:right-6"
     >
       <header className="flex items-center gap-3 border-b border-border-soft px-4 py-3">
         <div className="min-w-0 flex-1">

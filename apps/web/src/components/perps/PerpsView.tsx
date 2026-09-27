@@ -175,7 +175,9 @@ export function PerpsView({
         aside={<Pill tone={cfg.perpsVenue === 'agri-perp' ? 'accent' : 'muted'}>{venueLabel}</Pill>}
       />
 
-      <div className="space-y-4">
+      {/* Above the peeking Robinchan (z-20) wherever they meet: the ticket
+          and the board always take the click, never her. */}
+      <div className="relative z-[21] space-y-4">
         <MarketBoard markets={markets} category={category} symbol={symbol} onCategory={pickCategory} onSymbol={pick} />
 
         {/* One ticket, placed by the grid: after the header on a phone, a sticky column on desktop. */}
