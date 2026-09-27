@@ -39,6 +39,20 @@ export const INDEX_NAMES: Record<string, string> = {
 };
 
 /**
+ * The Market page's strip, in order. The worker (jobs/prices.ts) reads the
+ * first four from Chainlink on Robinhood Chain — the S&P 500 and the Nasdaq
+ * 100 through their SPY and QQQ feeds, since Chainlink has no index feed there
+ * (nor one for the Dow or the VIX). $RCHAN joins once it trades.
+ */
+export const MARKET_STRIP: ReadonlyArray<{ symbol: string; name: string }> = [
+  { symbol: 'SPY', name: 'S&P 500 · SPY' },
+  { symbol: 'QQQ', name: 'Nasdaq 100 · QQQ' },
+  { symbol: 'BTC', name: 'Bitcoin' },
+  { symbol: 'ETH', name: 'Ether' },
+  { symbol: 'RCHAN', name: '$RCHAN / USD' },
+];
+
+/**
  * Every symbol the app can show a page for. Tokenized stocks are tradable;
  * $RCHAN and the indices are shown (chart, heat) but can't be ordered here,
  * each for a reason the order panel states in place of the ticket.

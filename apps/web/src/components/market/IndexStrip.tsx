@@ -2,8 +2,7 @@
 
 import type { ApiEnvelope, MarketIndex } from '@robinchan/shared';
 import {
-  INDEX_NAMES,
-  INDEX_SYMBOLS,
+  MARKET_STRIP,
   POLL_MS,
   direction,
   formatPct,
@@ -24,7 +23,7 @@ export function IndexStrip({ initial }: { initial: ApiEnvelope<MarketIndex[]> })
   return (
     <section aria-label="Key indices" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {rows.length === 0
-        ? INDEX_SYMBOLS.map((symbol) => <IndexCardEmpty key={symbol} symbol={symbol} />)
+        ? MARKET_STRIP.map((s) => <IndexCardEmpty key={s.symbol} symbol={s.symbol} name={s.name} />)
         : rows
             .slice(0, 5)
             .map((index) => <IndexCard key={index.symbol} index={index} stale={stale} />)}
@@ -59,11 +58,11 @@ function IndexCard({ index, stale }: { index: MarketIndex; stale: boolean }) {
   );
 }
 
-function IndexCardEmpty({ symbol }: { symbol: string }) {
+function IndexCardEmpty({ symbol, name }: { symbol: string; name: string }) {
   return (
     <article className="rounded-tile border border-border bg-surface px-4 py-3.5">
       <span className="font-mono text-[11px] tracking-[0.08em] text-text-3">{symbol}</span>
-      <p className="mt-2 truncate text-[11px] text-text-3">{INDEX_NAMES[symbol] ?? '—'}</p>
+      <p className="mt-2 truncate text-[11px] text-text-3">{name}</p>
       <div className="mt-2.5 flex items-end justify-between gap-2">
         <div className="font-mono text-text-3">
           <p className="text-[17px] leading-tight">––––</p>

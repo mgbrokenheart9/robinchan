@@ -1,5 +1,6 @@
 import type { MarketIndex, Ticker } from '@robinchan/shared';
-import { INDEX_NAMES, INDEX_SYMBOLS, SYMBOL_NAMES, WATCHED_SYMBOLS } from '@robinchan/shared';
+import { MARKET_STRIP, SYMBOL_NAMES, WATCHED_SYMBOLS } from '@robinchan/shared';
+import { oracleClient, roundHistory } from '@robinchan/core';
 import { cacheKey, getCache } from '@robinchan/store';
 
 import { fetchTokenStats } from '../providers/dexscreener.js';
@@ -46,49 +47,107 @@ export async function runPrices(): Promise<void> {
     .slice(0, 5);
   await cache.set(cacheKey('market', 'snapshot'), snapshot, PRICE_TTL_SEC);
 
-  // Index symbols (SPX, NDX, …) aren't on Finnhub's free plan: every request
-  // fails, and at three price runs a minute those failures alone ate a fifth
-  // of the 60-calls/min budget, pushing the equity quotes into 429s. So they
-  // are only requested when the plan includes them (FINNHUB_INDICES=true),
-  // on their own breaker. Otherwise dev shows fixtures and anything else
-  // leaves the index cards empty rather than invent numbers.
-  const indexSymbols = INDEX_SYMBOLS.filter((s) => s !== 'RCHAN');
-  const indexQuotes =
-    process.env.FINNHUB_INDICES === 'true'
-      ? await quotesFor(indexSymbols, 'finnhub-index')
-      : fixturesEnabled()
-        ? fixtureQuotes(indexSymbols)
-        : [];
-  const indices: MarketIndex[] = indexQuotes.map((q) => ({
-    ...toTicker(q, INDEX_NAMES),
-    spark: fixtureSpark(q.symbol, SPARK_POINTS),
-  }));
-
-  // $RCHAN comes from a DEX, not from the equity provider.
-  indices.push(await rchanIndex());
+  // The strip comes from Chainlink (Finnhub's free plan has no indices), and
+  // $RCHAN from a DEX. Neither is ever invented outside dev: a card with no
+  // real number isn't shown.
+  const indices = await chainlinkStrip();
+  const rchan = await rchanIndex();
+  if (rchan) indices.push(rchan);
 
   await cache.set(cacheKey('market', 'indices'), indices, PRICE_TTL_SEC);
   log.info('prices', `${tickers.length} tickers, ${indices.length} indices updated`);
 }
 
-async function rchanIndex(): Promise<MarketIndex> {
+const STRIP_NAMES: Record<string, string> = Object.fromEntries(MARKET_STRIP.map((s) => [s.symbol, s.name]));
+
+/**
+ * Chainlink Data Feeds on Robinhood Chain — the same public proxies the perps
+ * read (Chainlink's feed directory, checked on chain). SPY and QQQ stand in
+ * for their indices; their feeds follow US hours, so they sit still over the
+ * weekend.
+ */
+const STRIP_FEEDS: Array<{ symbol: string; feed: `0x${string}` }> = [
+  { symbol: 'SPY', feed: '0x319724394D3A0e3669269846abE664Cd621f9f6A' },
+  { symbol: 'QQQ', feed: '0x80901d846d5D7B030F26B480776EE3b29374C2ae' },
+  { symbol: 'BTC', feed: '0xa2c5184bF03d373Dc9dE4876eb4Bce595B460251' },
+  { symbol: 'ETH', feed: '0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9' },
+];
+
+/** A feed moves on a 0.5% deviation: a minute between reads loses nothing. */
+const STRIP_REFRESH_MS = 60_000;
+let strip: { at: number; rows: MarketIndex[] } | null = null;
+
+async function chainlinkStrip(): Promise<MarketIndex[]> {
+  if (strip && Date.now() - strip.at < STRIP_REFRESH_MS) return [...strip.rows];
+  const client = oracleClient();
+  const now = Math.floor(Date.now() / 1000);
+  const since = now - 86_400;
+  const read = await Promise.all(
+    STRIP_FEEDS.map(async ({ symbol, feed }): Promise<MarketIndex | null> => {
+      if (!client) return null;
+      try {
+        // Oldest first, starting with the round in force a day ago.
+        const history = await roundHistory(client, feed, since);
+        const first = history[0];
+        const last = history.at(-1);
+        if (!first || !last) return null;
+        const change = last.price - first.price;
+        return {
+          symbol,
+          name: STRIP_NAMES[symbol] ?? symbol,
+          price: last.price,
+          change,
+          changePct: first.price ? (change / first.price) * 100 : 0,
+          currency: 'USD',
+          spark: sparkOf(history, since, now),
+        };
+      } catch (err) {
+        log.debug('prices', `${symbol}: Chainlink unavailable (${(err as Error).message.split('\n')[0]})`);
+        return null;
+      }
+    }),
+  );
+  // A feed that didn't answer this time keeps its last row rather than vanish.
+  const rows = STRIP_FEEDS.map(({ symbol }, i) => read[i] ?? strip?.rows.find((r) => r.symbol === symbol) ?? null).filter(
+    (r): r is MarketIndex => r !== null,
+  );
+  if (!rows.length && fixturesEnabled()) {
+    return fixtureQuotes(STRIP_FEEDS.map((f) => f.symbol)).map((q) => ({ ...toTicker(q, STRIP_NAMES), spark: fixtureSpark(q.symbol, SPARK_POINTS) }));
+  }
+  strip = { at: Date.now(), rows };
+  return [...rows];
+}
+
+/** The price in force at each of SPARK_POINTS even steps across the day. */
+function sparkOf(history: Array<{ timeSec: number; price: number }>, since: number, now: number): number[] {
+  const out: number[] = [];
+  let i = 0;
+  for (let k = 0; k < SPARK_POINTS; k++) {
+    const t = since + ((now - since) * k) / (SPARK_POINTS - 1);
+    while (i + 1 < history.length && (history[i + 1] as { timeSec: number }).timeSec <= t) i++;
+    out.push((history[i] as { price: number }).price);
+  }
+  return out;
+}
+
+async function rchanIndex(): Promise<MarketIndex | null> {
   try {
     const stats = await fetchTokenStats();
     return {
       symbol: 'RCHAN',
-      name: INDEX_NAMES.RCHAN ?? '$RCHAN / USD',
+      name: STRIP_NAMES.RCHAN ?? '$RCHAN / USD',
       price: stats.priceUsd,
       change: (stats.priceUsd * stats.changePct24h) / 100,
       changePct: stats.changePct24h,
       currency: 'USD',
-      spark: fixtureSpark('RCHAN', SPARK_POINTS),
+      // DexScreener's pair gives no history: no line rather than an invented one.
+      spark: fixturesEnabled() ? fixtureSpark('RCHAN', SPARK_POINTS) : [],
     };
   } catch {
     // The contract address only exists after launch on Pons (open decision #2).
+    // Until then only dev shows a stand-in.
+    if (!fixturesEnabled()) return null;
     const [q] = fixtureQuotes(['RCHAN']);
-    return {
-      ...toTicker(q as RawQuote, INDEX_NAMES),
-      spark: fixtureSpark('RCHAN', SPARK_POINTS),
-    };
+    return { ...toTicker(q as RawQuote, STRIP_NAMES), spark: fixtureSpark('RCHAN', SPARK_POINTS) };
   }
 }
