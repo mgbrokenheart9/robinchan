@@ -192,19 +192,68 @@ export function cancelText(reason: string, kind: 'open' | 'close'): string {
   }
 }
 
+/**
+ * How far back the cancel's event is looked for: the monitor saw the order
+ * waiting a few seconds ago, so it's recent — this covers a worker that was
+ * down a while (Robinhood Chain makes about ten blocks a second).
+ */
+const CANCEL_LOOKBACK_BLOCKS = 20_000n;
+
 async function cancelReason(orderId: bigint, kind: 'open' | 'close'): Promise<string> {
   const c = agriPerpContracts();
   const client = publicClient();
   if (!c || !client) return 'The order was cancelled.';
-  const logs = await client
-    .getContractEvents({ address: c.perp, abi: AGRI_PERP_ABI, eventName: 'OrderCancelled', args: { orderId }, fromBlock: deployBlock() })
-    .catch(() => []);
-  return cancelText(logs.at(-1)?.args.reason ?? '', kind);
+  let reason = '';
+  try {
+    const latest = await client.getBlockNumber();
+    const floor = latest > CANCEL_LOOKBACK_BLOCKS ? latest - CANCEL_LOOKBACK_BLOCKS : 0n;
+    let from = floor > deployBlock() ? floor : deployBlock();
+    while (from <= latest) {
+      const got = await logsWindow(from, latest, (fromBlock, toBlock) =>
+        client.getContractEvents({ address: c.perp, abi: AGRI_PERP_ABI, eventName: 'OrderCancelled', args: { orderId }, fromBlock, toBlock }),
+      );
+      reason = got.logs.at(-1)?.args.reason ?? reason;
+      from = got.to + 1n;
+    }
+  } catch {
+    /* the generic text below */
+  }
+  return cancelText(reason, kind);
 }
 
 function deployBlock(): bigint {
   const raw = process.env.AGRI_DEPLOY_BLOCK?.trim();
   return raw && /^\d+$/.test(raw) ? BigInt(raw) : 0n;
+}
+
+/**
+ * eth_getLogs a window at a time. Providers cap the range a request may span —
+ * dRPC's free plan at about a hundred blocks on Robinhood Chain, some ten
+ * seconds of them — so a refused window is halved until one goes through, the
+ * size that worked is kept for the next call, and it grows back now and then
+ * in case the refusal was a passing one. PERPS_LOGS_BLOCK_RANGE sets the start.
+ */
+const LOGS_SPAN_MAX = BigInt(Math.max(1, Math.floor(Number(process.env.PERPS_LOGS_BLOCK_RANGE)) || 2_000));
+let logsSpan = LOGS_SPAN_MAX;
+let logsStreak = 0;
+
+async function logsWindow<T>(from: bigint, to: bigint, read: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>): Promise<{ logs: T[]; to: bigint }> {
+  for (;;) {
+    const end = from + logsSpan - 1n < to ? from + logsSpan - 1n : to;
+    try {
+      const logs = await read(from, end);
+      if (++logsStreak >= 50 && logsSpan < LOGS_SPAN_MAX) {
+        logsSpan = logsSpan * 2n < LOGS_SPAN_MAX ? logsSpan * 2n : LOGS_SPAN_MAX;
+        logsStreak = 0;
+      }
+      return { logs, to: end };
+    } catch (err) {
+      logsStreak = 0;
+      // One block and still refused: it isn't the range.
+      if (end === from) throw err;
+      logsSpan = (end - from + 1n) / 2n;
+    }
+  }
 }
 
 export async function runPerpMonitor(): Promise<{ done: number; failed: number; waiting: number }> {
@@ -325,16 +374,19 @@ export async function runPerpIndexer(): Promise<{ from: bigint; to: bigint; even
   if (from > latest) return { from, to: latest, events: 0 };
   const start = from;
   let events = 0;
-  while (from <= latest) {
-    const to = from + 1_999n < latest ? from + 1_999n : latest;
-    const logs = await client.getLogs({ address: c.perp, fromBlock: from, toBlock: to });
+  // A bounded run: catching up from far behind takes several, and the cursor
+  // carries it — the rest of the upkeep doesn't wait on a long backlog.
+  for (let requests = 0; from <= latest && requests < INDEX_REQUESTS_PER_RUN; requests++) {
+    const { logs, to } = await logsWindow(from, latest, (fromBlock, toBlock) => client.getLogs({ address: c.perp, fromBlock, toBlock }));
     events += (await applyPerpLogs(logs)).length;
     from = to + 1n;
     // Kept for weeks: a worker that's been down resumes where it left off.
     await cache.set(cursorKey, { next: from.toString() }, 30 * 86_400);
   }
-  return { from: start, to: latest, events };
+  return { from: start, to: from - 1n, events };
 }
+
+const INDEX_REQUESTS_PER_RUN = 60;
 
 /* ------------------------------------------------------------------ */
 /* Keeper: orders, liquidations, delisted markets                      */

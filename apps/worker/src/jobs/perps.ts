@@ -199,17 +199,30 @@ export async function runPerpUpkeep(): Promise<void> {
     const keeper = await runPaperKeeper();
     if (keeper.liquidated) moved.push(`${keeper.liquidated} paper positions liquidated`);
   } else if (venue === 'agri-perp') {
-    // Orders run on their own, faster job (runPerpOrders).
-    const monitor = await runPerpMonitor();
-    if (monitor.done || monitor.failed) moved.push(`requests: ${monitor.done} settled, ${monitor.failed} failed`);
-    const indexed = await runPerpIndexer();
+    // Orders run on their own, faster job (runPerpOrders). Each part runs
+    // whatever the others did: an RPC refusing the indexer's reads mustn't
+    // hold up liquidations.
+    const monitor = await part('monitor', runPerpMonitor);
+    if (monitor && (monitor.done || monitor.failed)) moved.push(`requests: ${monitor.done} settled, ${monitor.failed} failed`);
+    const indexed = await part('indexer', runPerpIndexer);
     if (indexed?.events) moved.push(`${indexed.events} contract events indexed`);
-    const keeper = await runChainKeeper();
-    if (keeper.settled) moved.push(`${keeper.settled} positions on delisted markets settled`);
-    if (keeper.txs.length) moved.push(`${keeper.liquidated} positions liquidated (${keeper.txs.join(', ')})`);
-    else if (keeper.candidates && !keeperKey()) log.warn('perps', `${keeper.candidates} liquidatable positions, but no KEEPER_PRIVATE_KEY — anyone may liquidate them`);
+    const keeper = await part('keeper', runChainKeeper);
+    if (keeper?.settled) moved.push(`${keeper.settled} positions on delisted markets settled`);
+    if (keeper?.txs.length) moved.push(`${keeper.liquidated} positions liquidated (${keeper.txs.join(', ')})`);
+    else if (keeper?.candidates && !keeperKey()) log.warn('perps', `${keeper.candidates} liquidatable positions, but no KEEPER_PRIVATE_KEY — anyone may liquidate them`);
   }
   if (moved.length) log.info('perps', moved.join('; '));
+}
+
+async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
+  try {
+    return await run();
+  } catch (err) {
+    // viem's first line alone ("RPC Request failed.") hides why.
+    const e = err as { shortMessage?: string; details?: string; message?: string };
+    log.error('perps', `${name} failed: ${[e.shortMessage ?? e.message?.split('\n')[0], e.details].filter(Boolean).join(' — ')}`);
+    return null;
+  }
 }
 
 /**
