@@ -25,6 +25,7 @@ import {
   runPaperKeeper,
   runPerpIndexer,
   runPerpMonitor,
+  runPythRounds,
   stepBars,
   writeFeedPrices,
   type Mark,
@@ -223,6 +224,21 @@ async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
     log.error('perps', `${name} failed: ${[e.shortMessage ?? e.message?.split('\n')[0], e.details].filter(Boolean).join(' — ')}`);
     return null;
   }
+}
+
+/**
+ * The agri markets' Pyth feeds: each round brought on chain from Hermes as
+ * its slot opens, and the futures rolls carried out (core/perps/pyth.ts).
+ * Nothing to do until a PythRoundFeed is deployed and in the registry.
+ */
+export async function runPythFeeds(): Promise<void> {
+  if (perpsVenue() !== 'agri-perp' || !(await active())) return;
+  const r = await runPythRounds();
+  const moved: string[] = [];
+  if (r.pushed) moved.push(`${r.pushed} Pyth rounds pushed`);
+  if (r.rolled) moved.push(`${r.rolled} futures rolls carried out`);
+  if (r.scheduled) moved.push(`${r.scheduled} rolls announced`);
+  if (moved.length) log.info('perps', moved.join('; '));
 }
 
 /**

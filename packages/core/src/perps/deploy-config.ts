@@ -1,4 +1,4 @@
-import { tradablePerpMarkets } from '@robinchan/shared';
+import { PERP_MARKETS, tradablePerpMarkets } from '@robinchan/shared';
 
 /**
  * What the contracts' deploy script lists on chain, derived from the one
@@ -41,6 +41,31 @@ const MOCK_PRICES: Record<string, number> = {
   MSFT: 517,
   META: 749,
 };
+
+/** An agri market's PythRoundFeed, for contracts/scripts/deploy-pyth-feeds.ts. */
+export type DeployPythFeed = {
+  symbol: string;
+  description: string;
+  unitExp: number;
+  /** Prints with a wider confidence interval answer 0 (a bad-price round). */
+  maxConfBps: number;
+  maxLeverage: number;
+  maxOiUsd: number;
+  months: Array<{ pythSymbol: string; feedId: string; rollAt: string | null }>;
+};
+
+/** The agri markets Pyth prices, deployed or not. */
+export function pythFeedsForDeploy(): DeployPythFeed[] {
+  return PERP_MARKETS.filter((m) => m.pyth).map((m) => ({
+    symbol: m.symbol,
+    description: m.pyth!.description,
+    unitExp: m.pyth!.unitExp,
+    maxConfBps: 300,
+    maxLeverage: m.maxLeverage,
+    maxOiUsd: 1_000_000,
+    months: m.pyth!.months.map((x) => ({ ...x })),
+  }));
+}
 
 export function perpMarketsForDeploy(): DeployMarket[] {
   return tradablePerpMarkets().map((m) => {

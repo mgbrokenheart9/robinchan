@@ -147,6 +147,8 @@ describe('perps registry', () => {
   test('contracts/deploy/markets.json matches the registry (regenerate with scripts/perps-markets.mts)', () => {
     const file = JSON.parse(readFileSync(new URL('../../../contracts/deploy/markets.json', import.meta.url), 'utf8'));
     assert.deepEqual(file, core.perpMarketsForDeploy());
+    const pyth = JSON.parse(readFileSync(new URL('../../../contracts/deploy/pyth-feeds.json', import.meta.url), 'utf8'));
+    assert.deepEqual(pyth, core.pythFeedsForDeploy());
   });
 });
 

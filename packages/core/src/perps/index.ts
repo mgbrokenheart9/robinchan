@@ -15,5 +15,6 @@ export * from './keeper';
 export * from './markets';
 export * from './pipeline';
 export * from './prices';
+export * from './pyth';
 export * from './state';
 export * from './venue';

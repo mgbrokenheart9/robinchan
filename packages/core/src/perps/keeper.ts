@@ -68,7 +68,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out;
 }
 
-function keeperWallet() {
+export function keeperWallet() {
   const key = keeperKey();
   const chain = chainConfig();
   if (!key || !chain) return null;

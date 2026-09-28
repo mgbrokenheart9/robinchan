@@ -3,8 +3,9 @@ import type { Address, OrderExecution } from './types';
 /**
  * Perps (Agri Perps brief): synthetic perpetuals on crypto and stocks,
  * priced by Chainlink Data Feeds on Robinhood Chain and settled in USDC
- * against a liquidity pool. The brief's agricultural markets stay listed but
- * can't trade: Chainlink has no feed for them there. Shared by web, API and
+ * against a liquidity pool. Of the brief's agricultural markets, coffee,
+ * cocoa and sugar come through Pyth (a PythRoundFeed per market) once it's
+ * deployed; the rest have no feed anywhere and stay coming soon. Shared by web, API and
  * worker — the market registry, the shapes the API returns, and the math
  * every layer has to agree on.
  */
@@ -55,6 +56,27 @@ export type PerpMarketDef = {
   schedule: '24/7' | '24/5';
   /** Set when there's no oracle for this market at all — listed, but not tradable. */
   unavailable?: string;
+  /** Agri markets Pyth prices: where the price comes from before AgriFeed sees it. */
+  pyth?: PerpPythFeed;
+};
+
+/**
+ * An agri market priced by Pyth: its dated futures months, front first, and
+ * the PythRoundFeed on Robinhood Chain that turns the front month into
+ * Chainlink-style rounds for AgriFeed (contracts/contracts/oracles).
+ */
+export type PerpPythFeed = {
+  /** The deployed PythRoundFeed; null until then, and the market stays coming soon. */
+  roundFeed: `0x${string}` | null;
+  /** What the round feed's `description()` returns. */
+  description: string;
+  /** 0 for USD quotes, -2 for US cents. */
+  unitExp: number;
+  /**
+   * Contract months in order. `rollAt` is when to move to the next one (ISO,
+   * UTC); null while the next month isn't on Pyth yet.
+   */
+  months: Array<{ pythSymbol: string; feedId: `0x${string}`; rollAt: string | null }>;
 };
 
 /**
@@ -106,6 +128,26 @@ const agri = (symbol: string, name: string, unit: string, hours: string) =>
     `Coming soon. ${name} perps open once a live ${name.toLowerCase()} price feed is on Robinhood Chain for the contracts to settle against.`,
   );
 
+/**
+ * An agri market Pyth prices (the ICE softs, as dated futures): coming soon
+ * until its PythRoundFeed is deployed, then a market like any Chainlink one —
+ * the round feed stands where a Chainlink proxy would, and AgriFeed lists it.
+ */
+function agriPyth(symbol: string, name: string, unit: string, hours: string, pyth: PerpPythFeed): PerpMarketDef {
+  if (!pyth.roundFeed) return { ...agri(symbol, name, unit, hours), pyth };
+  return {
+    symbol,
+    name,
+    category: 'agri',
+    unit,
+    contracts: [{ feedId: pyth.roundFeed, oracleSymbol: pyth.description, label: pyth.description, rollAt: pyth.months[0]?.rollAt ?? null }],
+    maxLeverage: GAPPING_MAX_LEVERAGE,
+    hours,
+    schedule: '24/5',
+    pyth,
+  };
+}
+
 /** An agri market waiting on its feed: shown as coming soon rather than as missing an oracle. */
 export const perpComingSoon = (m: { category: PerpCategory; status?: string }): boolean =>
   m.category === 'agri' && (m.status === undefined || m.status === 'unavailable');
@@ -115,9 +157,33 @@ export const PERP_MARKETS: PerpMarketDef[] = [
   agri('CORN', 'Corn', '/bu', 'CBOT hours'),
   agri('SOYB', 'Soybeans', '/bu', 'CBOT hours'),
   agri('WEAT', 'Wheat', '/bu', 'CBOT hours'),
-  agri('COFF', 'Arabica Coffee', '/lb', 'ICE hours'),
-  agri('COCC', 'Cocoa', '/t', 'ICE hours'),
-  agri('SUGA', 'Raw Sugar', '/lb', 'ICE hours'),
+  // Pyth feed ids checked against Hermes' feed list on 2026-09-28. The next
+  // month after the last listed here isn't on Pyth yet.
+  agriPyth('COFF', 'Arabica Coffee', '/lb', 'ICE hours', {
+    roundFeed: null,
+    description: 'Pyth Arabica Coffee / USD',
+    unitExp: -2,
+    months: [
+      { pythSymbol: 'Commodities.CFZ6/USc', feedId: '0xa61c21c0ca93300f50f231b52f59e9a6f47a07d33e78c1a9b8f84bd5928a3e8f', rollAt: '2026-11-12T15:00:00Z' },
+      { pythSymbol: 'Commodities.CFH7/USc', feedId: '0x6d2ae51093c677632d215bc74b37314e61994e5dd8ec311372f468617dd30299', rollAt: null },
+    ],
+  }),
+  agriPyth('COCC', 'Cocoa', '/t', 'ICE hours', {
+    roundFeed: null,
+    description: 'Pyth Cocoa / USD',
+    unitExp: 0,
+    months: [
+      { pythSymbol: 'Commodities.CAZ6/USD', feedId: '0x7452a0c6aa220280021272c3cebaaa0f32cc910cd14ea43460ff8ae2d1e773ea', rollAt: '2026-11-12T15:00:00Z' },
+      { pythSymbol: 'Commodities.CAH7/USD', feedId: '0x600f4865bb8a69e773b716bf954597399861bd945cc35e06f03c42fc4f539c0c', rollAt: null },
+    ],
+  }),
+  agriPyth('SUGA', 'Raw Sugar', '/lb', 'ICE hours', {
+    roundFeed: null,
+    description: 'Pyth Raw Sugar / USD',
+    unitExp: -2,
+    // October 2026 (RSV6) expired on 30 September: March 2027 is the front month.
+    months: [{ pythSymbol: 'Commodities.RSH7/USc', feedId: '0xdff723417798bd324ca03d568c04b22462a0fe9b6236e0fce1077d13d2ea69b4', rollAt: null }],
+  }),
   agri('PALM', 'Crude Palm Oil', '/t', 'Bursa Malaysia hours'),
   agri('RICE', 'Rough Rice', '/cwt', 'CBOT hours'),
   agri('COTT', 'Cotton', '/lb', 'ICE hours'),

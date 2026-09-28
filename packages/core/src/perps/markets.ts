@@ -114,7 +114,13 @@ export function perpMarketStatus(
 ): Pick<PerpMarket, 'status' | 'statusNote'> {
   if (def.unavailable) return { status: 'unavailable', statusNote: def.unavailable };
   if (opts.venueConfigured && !state) {
-    return { status: 'unavailable', statusNote: `${def.symbol} isn't listed on the perps contract yet.` };
+    return {
+      status: 'unavailable',
+      statusNote:
+        def.category === 'agri'
+          ? `Coming soon. ${def.name} perps open once its Pyth feed is listed on the perps contract.`
+          : `${def.symbol} isn't listed on the perps contract yet.`,
+    };
   }
   if (state?.delisted) {
     const at = state.settlementPrice != null ? ` at $${state.settlementPrice.toPrecision(6)}` : '';
