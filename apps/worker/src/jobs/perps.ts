@@ -36,6 +36,7 @@ import { getCache, getPerpStore } from '@robinchan/store';
 import { callProvider } from '../providers/adapter.js';
 import { fixturesEnabled } from '../providers/fixtures.js';
 import { fixtureOraclePrices, fixtureValue } from '../providers/perps-fixtures.js';
+import { describeError } from '../lib/describe-error.js';
 import { log } from '../lib/log.js';
 
 /**
@@ -219,9 +220,7 @@ async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
   try {
     return await run();
   } catch (err) {
-    // viem's first line alone ("RPC Request failed.") hides why.
-    const e = err as { shortMessage?: string; details?: string; message?: string };
-    log.error('perps', `${name} failed: ${[e.shortMessage ?? e.message?.split('\n')[0], e.details].filter(Boolean).join(' — ')}`);
+    log.error('perps', `${name} failed: ${describeError(err)}`);
     return null;
   }
 }

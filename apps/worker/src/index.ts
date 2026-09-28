@@ -17,6 +17,7 @@ const { runSnapshots, msUntilMidnightUtc } = await import('./jobs/snapshots.js')
 const { runCalendar } = await import('./jobs/calendar.js');
 const { runChannels, runClips } = await import('./jobs/media.js');
 const { log } = await import('./lib/log.js');
+const { describeError } = await import('./lib/describe-error.js');
 
 /** Worker schedule — brief §8, plus the Trade/Heat/Portfolio brief §9. */
 type Job = {
@@ -86,7 +87,7 @@ async function safeRun(job: Job): Promise<void> {
     await job.run();
   } catch (err) {
     // One job failing must not bring down the process — other jobs keep running.
-    log.error('worker', `${job.name} failed: ${err instanceof Error ? err.message : String(err)}`);
+    log.error('worker', `${job.name} failed: ${describeError(err)}`);
   } finally {
     running.delete(job.name);
     const ms = Date.now() - started;
