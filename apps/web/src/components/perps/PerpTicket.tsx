@@ -7,6 +7,7 @@ import {
   PERP_LIQUIDATION_THRESHOLD,
   formatNative,
   formatUsd,
+  perpComingSoon,
   perpLiquidationPrice,
 } from '@robinchan/shared';
 
@@ -59,7 +60,9 @@ export function PerpTicket({
         <p className="t-eyebrow mb-3">Order</p>
         <p className="t-h3 mb-2">
           {market.status === 'unavailable'
-            ? `${market.symbol} can't be traded yet`
+            ? perpComingSoon(market)
+              ? `${market.symbol} is coming soon`
+              : `${market.symbol} can't be traded yet`
             : market.status === 'halted'
               ? `${market.symbol} is close-only`
               : `${market.symbol} is closed right now`}

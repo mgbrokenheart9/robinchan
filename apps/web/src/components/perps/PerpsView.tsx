@@ -11,7 +11,7 @@ import type {
   PerpPosition,
   PerpWaitingOrder,
 } from '@robinchan/shared';
-import { CANDLE_INTERVALS, formatPct, isMainnet, perpMarket } from '@robinchan/shared';
+import { CANDLE_INTERVALS, formatPct, isMainnet, perpComingSoon, perpMarket } from '@robinchan/shared';
 
 import type { PriceLineSpec } from '@/components/charts/CandleChart';
 import { useCompanion, usePageContext } from '@/components/companion/CompanionProvider';
@@ -149,7 +149,11 @@ export function PerpsView({
     if (!market || greeted.current === symbol) return;
     greeted.current = symbol;
     if (market.status === 'unavailable') {
-      companion.say(`${market.symbol} (${market.name}) can't be traded: Chainlink has no price feed for it on Robinhood Chain.`);
+      companion.say(
+        perpComingSoon(market)
+          ? `${market.symbol} (${market.name}) is coming soon: it opens once a live price feed for it is on Robinhood Chain.`
+          : `${market.symbol} (${market.name}) can't be traded: Chainlink has no price feed for it on Robinhood Chain.`,
+      );
       return;
     }
     const move = market.change24hPct == null ? '' : `, ${formatPct(market.change24hPct)} over 24h`;
@@ -171,7 +175,7 @@ export function PerpsView({
       <PageHeader
         eyebrow="Perps"
         title="Crypto and stock perpetuals"
-        lead={`Long or short crypto (up to 20×) and US stocks (up to 5×) — priced by Chainlink on Robinhood Chain, settled in ${cfg.perpsCollateral}, signed in your own wallet. The agri markets are listed, but Chainlink has no feed for them yet.`}
+        lead={`Long or short crypto (up to 20×) and US stocks (up to 5×) — priced by Chainlink on Robinhood Chain, settled in ${cfg.perpsCollateral}, signed in your own wallet. Agri markets are coming soon.`}
         aside={<Pill tone={cfg.perpsVenue === 'agri-perp' ? 'accent' : 'muted'}>{venueLabel}</Pill>}
       />
 

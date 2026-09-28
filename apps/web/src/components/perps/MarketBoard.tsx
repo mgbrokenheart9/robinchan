@@ -1,7 +1,7 @@
 'use client';
 
 import type { PerpCategory, PerpMarket } from '@robinchan/shared';
-import { direction, formatPct, formatUsdCompact } from '@robinchan/shared';
+import { direction, formatPct, formatUsdCompact, perpComingSoon } from '@robinchan/shared';
 
 import { AgriIcon, ClockIcon, CryptoIcon, LockIcon, StocksIcon } from '@/components/icons';
 import { TickerLogo, hasTickerLogo } from '@/components/TickerCard';
@@ -61,7 +61,7 @@ export function MarketBoard({
                 {label}
                 {total ? (
                   <span className={cx('font-mono text-[10.5px]', category === id ? 'text-accent-ink/70' : 'text-text-3')}>
-                    {live < total ? `${live}/${total}` : total}
+                    {live === 0 && id === 'agri' ? 'soon' : live < total ? `${live}/${total}` : total}
                   </span>
                 ) : null}
               </button>
@@ -118,8 +118,8 @@ function MarketChip({ market: m, active, onClick }: { market: PerpMarket; active
       </span>
       {unavailable ? (
         <span className="flex items-center gap-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-text-3">
-          <LockIcon width={11} height={11} />
-          no oracle
+          {perpComingSoon(m) ? <ClockIcon width={11} height={11} /> : <LockIcon width={11} height={11} />}
+          {perpComingSoon(m) ? 'coming soon' : 'no oracle'}
         </span>
       ) : (
         <span className="flex flex-col items-end leading-tight">
@@ -232,7 +232,7 @@ function StatusPill({ market: m }: { market: PerpMarket }) {
   return (
     <span className={cx('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10.5px] uppercase tracking-[0.08em]', tone)}>
       {m.status === 'open' ? <PulseDot className="[&>span]:bg-up" /> : null}
-      {STATUS_LABEL[m.status]}
+      {perpComingSoon(m) ? 'Coming soon' : STATUS_LABEL[m.status]}
     </span>
   );
 }

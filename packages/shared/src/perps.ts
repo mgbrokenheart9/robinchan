@@ -77,7 +77,7 @@ export const GAPPING_MAX_LEVERAGE = 5;
 const CHAINLINK_CHECKED = '2026-09-26';
 
 /** A market with no Chainlink feed on Robinhood Chain: listed, with the reason, never tradable. */
-function noFeed(symbol: string, name: string, category: PerpCategory, unit: string, hours: string): PerpMarketDef {
+function noFeed(symbol: string, name: string, category: PerpCategory, unit: string, hours: string, note?: string): PerpMarketDef {
   return {
     symbol,
     name,
@@ -87,11 +87,28 @@ function noFeed(symbol: string, name: string, category: PerpCategory, unit: stri
     maxLeverage: category === 'crypto' ? CRYPTO_MAX_LEVERAGE : GAPPING_MAX_LEVERAGE,
     hours,
     schedule: category === 'crypto' ? '24/7' : '24/5',
-    unavailable: `Chainlink has no ${name.toLowerCase()} price feed on Robinhood Chain (checked ${CHAINLINK_CHECKED}), so there's no oracle to settle against.`,
+    unavailable:
+      note ?? `Chainlink has no ${name.toLowerCase()} price feed on Robinhood Chain (checked ${CHAINLINK_CHECKED}), so there's no oracle to settle against.`,
   };
 }
 
-const agri = (symbol: string, name: string, unit: string, hours: string) => noFeed(symbol, name, 'agri', unit, hours);
+/**
+ * Coming soon: no commodity price reaches Robinhood Chain yet — Chainlink has
+ * no agri feed there, and Pyth's commodity data needs a paid plan.
+ */
+const agri = (symbol: string, name: string, unit: string, hours: string) =>
+  noFeed(
+    symbol,
+    name,
+    'agri',
+    unit,
+    hours,
+    `Coming soon. ${name} perps open once a live ${name.toLowerCase()} price feed is on Robinhood Chain for the contracts to settle against.`,
+  );
+
+/** An agri market waiting on its feed: shown as coming soon rather than as missing an oracle. */
+export const perpComingSoon = (m: { category: PerpCategory; status?: string }): boolean =>
+  m.category === 'agri' && (m.status === undefined || m.status === 'unavailable');
 
 export const PERP_MARKETS: PerpMarketDef[] = [
   /* ---- Agri: no Chainlink feed for any of them on Robinhood Chain ---- */

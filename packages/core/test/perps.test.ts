@@ -10,6 +10,7 @@ import {
   GAPPING_MAX_LEVERAGE,
   PERP_MARKETS,
   answerToUsd,
+  perpComingSoon,
   perpIsLiquidatable,
   perpLiquidationPrice,
   perpMarket,
@@ -106,10 +107,17 @@ describe('perps registry', () => {
     assert.equal(perpOracleFeeds().length, 9);
   });
 
-  test('agri, SOL and ARB are listed but untradable — Chainlink has no feed for them on Robinhood Chain', () => {
+  test('agri, SOL and ARB are listed but untradable: agri is coming soon, SOL and ARB have no Chainlink feed', () => {
     const agri = PERP_MARKETS.filter((m) => m.category === 'agri');
     assert.deepEqual(agri.map((m) => m.symbol), ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'PALM', 'RICE', 'COTT']);
-    for (const m of [...agri, perpMarket('SOL')!, perpMarket('ARB')!]) assert.match(m.unavailable as string, /Chainlink has no/);
+    for (const m of agri) {
+      assert.match(m.unavailable as string, /^Coming soon\./);
+      assert.ok(perpComingSoon(m), m.symbol);
+    }
+    for (const m of [perpMarket('SOL')!, perpMarket('ARB')!]) {
+      assert.match(m.unavailable as string, /Chainlink has no/);
+      assert.ok(!perpComingSoon(m), m.symbol);
+    }
     assert.deepEqual(
       tradablePerpMarkets().map((m) => m.symbol),
       ['BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META'],
