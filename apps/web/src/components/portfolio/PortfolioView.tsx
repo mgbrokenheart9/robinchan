@@ -72,7 +72,7 @@ function Connected() {
         <ErrorState
           message={
             summary.error?.code === 'NOT_CONFIGURED'
-              ? "Wallet balances can't be read yet: the token contracts aren't configured on this server."
+              ? "Wallet balances can't be read yet: no chain connection is configured on this server."
               : "Your portfolio couldn't load right now."
           }
           onRetry={summary.reload}
@@ -87,8 +87,12 @@ function Connected() {
       <div className="card">
         <EmptyState
           illustration={<EmptyWallet />}
-          title="This wallet is empty"
-          body="No tokens here yet. Look around the market first — whatever you buy through Robinchan shows up here with its purchase price."
+          title={p.discovery === 'registry' ? 'No listed tokens in this wallet' : 'This wallet is empty'}
+          body={
+            p.discovery === 'registry'
+              ? `None of the tokens Robinchan lists are here; other tokens aren't shown without a token indexer. Gas balance: ${formatNative(p.native.qty, p.native.symbol)}.`
+              : 'No tokens here yet. Look around the market first — whatever you buy through Robinchan shows up here with its purchase price.'
+          }
           action={
             <Link href="/market" className="btn-primary text-sm">
               Go to Market

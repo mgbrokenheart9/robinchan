@@ -23,3 +23,6 @@ out/
 
 # Isolated E2E dev servers (NEXT_DIST_DIR).
 .next-e2e*/
+
+# Promo video project (local only, not committed).
+/promo/

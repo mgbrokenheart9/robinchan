@@ -69,10 +69,13 @@ export async function readHoldings(address: Address, userId: string | null): Pro
     result = await readFromChain(address, registry);
   } else if (isDev()) {
     result = await readFixture(address, userId);
+  } else if (publicClient()) {
+    // No stock contracts listed yet, but the chain still answers: the gas
+    // balance, $RCHAN and the stablecoin if configured, and whatever an
+    // explorer finds. Better than refusing to show the wallet at all.
+    result = await readFromChain(address, registry);
   } else {
-    throw new HoldingsUnavailable(
-      'Token contracts for the tokenized stocks are not configured yet (RC_TOKENS), so wallet balances cannot be read.',
-    );
+    throw new HoldingsUnavailable('No chain RPC is configured, so wallet balances cannot be read.');
   }
 
   await getCache().set(key, result, CACHE_SEC).catch(() => undefined);
