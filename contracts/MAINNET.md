@@ -241,10 +241,47 @@ an API key for every feed now; a crypto-only key gets 403 for the softs. Paid pl
    `roundFeed`; the worker needs `PYTH_API_KEY`. The keeper then pushes a round per slot, carries
    out rolls, and — owning the feeds, as with SINGLE_KEY — announces the next roll a week ahead.
 3. **Open the markets** once each feed has a round:
-   `npx hardhat run scripts/list-pyth-markets.ts --network rhMainnet` (MAX_OI_USD, default 10).
+   `FEEDS=pyth npx hardhat run scripts/list-agri-markets.ts --network rhMainnet` (MAX_OI_USD, default 10).
 
 **Watch for:** a month's roll needs the next month on Pyth. Sugar starts on March 2027 (RSH7) with
 no later month listed yet, and coffee and cocoa roll to March 2027 in November; add each next month
 to the registry when Pyth lists it, or the market has to be paused before its contract expires. A
 keeper down for more than 64 slots (5 hours at 5-minute slots) during trading leaves orders
 requested in that gap unprovable — they can still be taken back.
+
+## 12. Agri markets priced by the operator (Yahoo Finance)
+
+The free route, chosen on 2026-09-28: the keeper reads each agri market's contract month from
+Yahoo Finance and posts it to a `ReportedRoundFeed`, which AgriFeed lists like a Chainlink proxy.
+Eight markets: corn, soybeans, wheat, rough rice (CBOT), arabica coffee, cocoa, sugar, cotton
+(ICE). Palm oil isn't on Yahoo and stays coming soon.
+
+**What traders have to trust.** These prices are the operator's. Nothing on chain proves them:
+the reporter key (the keeper wallet) could post any price, and a stolen key could drain the pool
+up to the open-interest caps. The contract limits the damage — one round moves the price at most
+15% (past that the owner posts it, `reportUnchecked`), a quote can't be older than an hour or
+older than the last round — and the page says where the price comes from. Keep the caps small.
+
+**Why the ~10-minute delay can't be traded against.** Each round carries the time the exchange
+quoted it (`startedAt`), not when it was posted. An order settles on the first round *quoted* after
+it, so by the time a trader places an order, no price they could already see can fill it; the delay
+only makes fills slower (10+ minutes). Liquidations run ~10 minutes behind the market, which is
+why agri stays at 5× at most.
+
+**Other risks.** Yahoo's quote API is unofficial: it can change, rate-limit or block the worker's
+IP without notice (no rounds then: orders wait and expire with a refund after 25 hours), and its
+terms don't cover commercial use of the data. A round goes up when the price moved 0.2% or every
+10 minutes of market time, ~0.000001 ETH each.
+
+1. **Deploy the feeds:** `npx hardhat run scripts/deploy-reported-feeds.ts --network rhMainnet` —
+   the reporter is KEEPER_ADDRESS (or the deployer with SINGLE_KEY). Writes
+   `deployments/4663-reported.json`.
+2. **Point the app at them:** each address goes in `packages/shared/src/perps.ts` as the market's
+   reported `roundFeed`. The worker's `agri-prices` job then posts rounds as each market trades,
+   and rolls contract months at the registry's roll times.
+3. **Open the markets** once each has a round: `npx hardhat run scripts/list-agri-markets.ts
+   --network rhMainnet` (MAX_OI_USD, default 10). Markets closed at the time get listed on a later
+   run.
+
+**Watch for:** a market past its roll time with no next month listed logs a warning — add the
+next month to the registry before the contract expires, or pause the market.

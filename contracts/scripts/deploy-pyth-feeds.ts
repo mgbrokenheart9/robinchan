@@ -9,7 +9,7 @@
  * passed), with the roll to the next month announced when there is one. The
  * feeds need no Pyth data to deploy; they get rounds once the keeper can read
  * Hermes (PYTH_API_KEY, on a plan that covers commodities), and the markets
- * open once scripts/list-pyth-markets.ts lists them on the perps contracts.
+ * open once scripts/list-agri-markets.ts (FEEDS=pyth) lists them on the perps contracts.
  *
  * Environment:
  *   PYTH_ADDRESS    Default Pyth on Robinhood Chain mainnet (confirmed by Pyth,
@@ -101,4 +101,4 @@ ${deployed.map((d) => `     ${d.symbol}: roundFeed: '${d.feed}',`).join('\n')}
 2. Give the worker PYTH_API_KEY (Railway). Once Hermes serves the feeds (the
    commodities plan), the keeper pushes a round per slot.
 3. List the markets once each feed has a round:
-     npx hardhat run scripts/list-pyth-markets.ts --network ${local ? 'localhost' : chainId === 4663 ? 'rhMainnet' : '<network>'}`);
+     FEEDS=pyth npx hardhat run scripts/list-agri-markets.ts --network ${local ? 'localhost' : chainId === 4663 ? 'rhMainnet' : '<network>'}`);

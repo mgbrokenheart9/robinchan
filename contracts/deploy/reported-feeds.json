@@ -1,0 +1,134 @@
+[
+  {
+    "symbol": "CORN",
+    "description": "Robinchan Corn / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "ZCZ26.CBT",
+        "rollAt": "2026-11-20T15:00:00Z"
+      },
+      {
+        "symbol": "ZCH27.CBT",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "SOYB",
+    "description": "Robinchan Soybeans / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "ZSX26.CBT",
+        "rollAt": "2026-10-23T15:00:00Z"
+      },
+      {
+        "symbol": "ZSF27.CBT",
+        "rollAt": "2026-12-18T15:00:00Z"
+      },
+      {
+        "symbol": "ZSH27.CBT",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "WEAT",
+    "description": "Robinchan Wheat / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "ZWZ26.CBT",
+        "rollAt": "2026-11-20T15:00:00Z"
+      },
+      {
+        "symbol": "ZWH27.CBT",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "COFF",
+    "description": "Robinchan Arabica Coffee / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "KCZ26.NYB",
+        "rollAt": "2026-11-12T15:00:00Z"
+      },
+      {
+        "symbol": "KCH27.NYB",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "COCC",
+    "description": "Robinchan Cocoa / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "CCZ26.NYB",
+        "rollAt": "2026-11-06T15:00:00Z"
+      },
+      {
+        "symbol": "CCH27.NYB",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "SUGA",
+    "description": "Robinchan Raw Sugar / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "SBH27.NYB",
+        "rollAt": "2027-02-18T15:00:00Z"
+      },
+      {
+        "symbol": "SBK27.NYB",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "RICE",
+    "description": "Robinchan Rough Rice / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "ZRX26.CBT",
+        "rollAt": "2026-10-23T15:00:00Z"
+      },
+      {
+        "symbol": "ZRF27.CBT",
+        "rollAt": null
+      }
+    ]
+  },
+  {
+    "symbol": "COTT",
+    "description": "Robinchan Cotton / USD",
+    "maxMoveBps": 1500,
+    "maxLeverage": 5,
+    "months": [
+      {
+        "symbol": "CTZ26.NYB",
+        "rollAt": "2026-11-13T15:00:00Z"
+      },
+      {
+        "symbol": "CTH27.NYB",
+        "rollAt": null
+      }
+    ]
+  }
+]

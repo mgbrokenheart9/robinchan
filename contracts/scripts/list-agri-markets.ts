@@ -1,16 +1,18 @@
 /**
- * Opens the Pyth agri markets: lists each deployed PythRoundFeed on AgriFeed
- * and its market on AgriPerp — once the feed has a round (AgriFeed refuses a
- * feed without a price). Run by the owner of the perps contracts, after
- * scripts/deploy-pyth-feeds.ts and once the keeper is pushing rounds.
+ * Opens the agri markets: lists each deployed round feed on AgriFeed and its
+ * market on AgriPerp — once the feed has a round (AgriFeed refuses a feed
+ * without a price). Run by the owner of the perps contracts, after the
+ * feeds' deploy script and once the keeper is posting rounds.
  *
- *   npx hardhat run scripts/list-pyth-markets.ts --network rhMainnet
+ *   npx hardhat run scripts/list-agri-markets.ts --network rhMainnet
+ *   FEEDS=pyth npx hardhat run scripts/list-agri-markets.ts --network rhMainnet
  *
  * Reads deployments/{chainId}.json (the perps contracts) and
- * deployments/{chainId}-pyth.json (the feeds). A market already listed is
+ * deployments/{chainId}-{FEEDS}.json (the feeds). A market already listed is
  * skipped; a feed with no round yet is left for a later run.
  *
  * Environment:
+ *   FEEDS        reported (default: the operator's, from Yahoo Finance) or pyth.
  *   MAX_OI_USD   Open-interest cap per side per market at launch (default 10,
  *                like the other markets' launch caps); the owner raises it later.
  */
@@ -19,16 +21,17 @@ import { readFileSync } from 'node:fs';
 import { network } from 'hardhat';
 import { keccak256, parseUnits, toBytes, type Address, type Hex } from 'viem';
 
-type DeployPythFeed = { symbol: string; maxLeverage: number };
+const kind = process.env.FEEDS?.trim() || 'reported';
+if (kind !== 'reported' && kind !== 'pyth') throw new Error('FEEDS is reported or pyth');
 
 const { viem } = await network.create();
 const publicClient = await viem.getPublicClient();
 const chainId = await publicClient.getChainId();
-const read = <T>(file: string): T => JSON.parse(readFileSync(new URL(`../deployments/${file}`, import.meta.url), 'utf8')) as T;
+const read = <T>(file: string): T => JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf8')) as T;
 
-const perps = read<{ feed: Address; perp: Address }>(`${chainId}.json`);
-const pyth = read<{ feeds: Array<{ symbol: string; feed: Address }> }>(`${chainId}-pyth.json`);
-const terms = JSON.parse(readFileSync(new URL('../deploy/pyth-feeds.json', import.meta.url), 'utf8')) as DeployPythFeed[];
+const perps = read<{ feed: Address; perp: Address }>(`../deployments/${chainId}.json`);
+const deployed = read<{ feeds: Array<{ symbol: string; feed: Address }> }>(`../deployments/${chainId}-${kind}.json`);
+const terms = read<Array<{ symbol: string; maxLeverage: number }>>(`../deploy/${kind}-feeds.json`);
 const maxOi = parseUnits(process.env.MAX_OI_USD?.trim() || '10', 6);
 
 const agriFeed = await viem.getContractAt('AgriFeed', perps.feed);
@@ -39,12 +42,16 @@ async function mined(hash: Promise<Hex>): Promise<void> {
   if (receipt.status !== 'success') throw new Error(`transaction ${receipt.transactionHash} reverted`);
 }
 
-for (const { symbol, feed } of pyth.feeds) {
-  const round = await viem.getContractAt('PythRoundFeed', feed);
-  const rounds = await round.read.roundCount();
+for (const { symbol, feed } of deployed.feeds) {
+  const rounds =
+    kind === 'pyth'
+      ? await (await viem.getContractAt('PythRoundFeed', feed)).read.roundCount()
+      : await (await viem.getContractAt('ReportedRoundFeed', feed)).read.roundCount();
   const market = keccak256(toBytes(symbol));
   if (rounds === 0n) {
-    console.log(`  ${symbol}: no round yet — the keeper pushes once Hermes serves the feed (PYTH_API_KEY on the commodities plan)`);
+    console.log(
+      `  ${symbol}: no round yet — ${kind === 'pyth' ? 'the keeper pushes once Hermes serves the feed (PYTH_API_KEY on the commodities plan)' : 'the keeper posts once its market trades and the feed is in the registry'}`,
+    );
     continue;
   }
   if (!(await agriFeed.read.isListed([market]))) {
