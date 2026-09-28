@@ -11,7 +11,7 @@ const { runHeat } = await import('./jobs/heat.js');
 const { runHeatReads } = await import('./jobs/reads.js');
 const { runCandles } = await import('./jobs/candles.js');
 const { runOrders } = await import('./jobs/orders.js');
-const { runPerpOrders, runPerpPrices, runPerpUpkeep, runPythFeeds, runReportedFeeds } = await import('./jobs/perps.js');
+const { runPerpOrders, runPerpPrices, runPerpUpkeep, runPythFeeds, runReportedFeeds, runRhTokenPools, runTwapFeeds } = await import('./jobs/perps.js');
 const { perpPriceIntervalMs } = await import('@robinchan/core');
 const { runSnapshots, msUntilMidnightUtc } = await import('./jobs/snapshots.js');
 const { runCalendar } = await import('./jobs/calendar.js');
@@ -60,6 +60,11 @@ const JOBS: Record<string, Job> = {
   pythRounds: { name: 'pyth-rounds', everyMs: 10_000, run: runPythFeeds },
   // The agri prices the operator posts, from Yahoo Finance quotes.
   reportedRounds: { name: 'agri-prices', everyMs: 30_000, run: runReportedFeeds },
+  // The RH Tokens' 15-minute averages: one observation a minute per feed
+  // (the contract refuses more), checked often so none is late.
+  twapRounds: { name: 'twap-rounds', everyMs: 15_000, run: runTwapFeeds },
+  // The RH Tokens' pools and whether each is deep enough to list.
+  rhTokens: { name: 'rh-tokens', everyMs: 2 * 60_000, run: runRhTokenPools },
   // Stock tokens on chain against their stocks (the Gap board): DexScreener
   // pools every run, Finnhub's reference prices only as often as they move.
   gap: { name: 'gap', everyMs: 2 * 60_000, run: runGap },

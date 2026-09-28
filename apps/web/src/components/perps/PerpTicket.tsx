@@ -270,7 +270,9 @@ export function PerpTicket({
         <p className="pt-2 text-[11.5px] leading-snug text-text-3">
           {quote
             ? onChain
-              ? 'Your order fills at Chainlink’s next price after it lands — or not at all if that price is past your limit.'
+              ? market.category === 'rh'
+              ? 'Your order fills at the first 15-minute average that starts after it lands, about 16 minutes on — or not at all if that price is past your limit.'
+              : 'Your order fills at Chainlink’s next price after it lands — or not at all if that price is past your limit.'
               : 'Fills at the price when you sign, within the limit above.'
             : 'Estimates. The binding numbers come from the server’s quote, valid for 20 seconds.'}
         </p>

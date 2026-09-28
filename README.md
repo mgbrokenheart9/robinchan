@@ -220,9 +220,10 @@ that reaches a signature or a transaction, from its own prices and balances.
 | Category | Markets | Max leverage | Notes |
 | --- | --- | --- | --- |
 | Crypto | BTC, ETH | 20× | 24/7. Chainlink's `BTC / USD` and `ETH / USD` |
-| Stocks | AAPL, TSLA, NVDA, AMZN, GOOGL, MSFT, META | 5× | Robinhood's tokenized stocks, 24/5 (Sunday 20:00 to Friday 20:00 New York). The feeds report total return value, so splits and dividends need nothing on chain |
+| Stocks | AAPL, TSLA, NVDA, AMZN, GOOGL, MSFT, META, SPCX, SPY, CRCL, MU, GLD | 5× | Robinhood's tokenized stocks, 24/5 (Sunday 20:00 to Friday 20:00 New York). The feeds report total return value, so splits and dividends need nothing on chain. The last five need `scripts/list-markets.ts` on a stack deployed before them (`contracts/MAINNET.md` §14) |
 | Crypto | SOL, ARB | — | Listed but not tradable: no Chainlink feed on Robinhood Chain |
-| Agri | CORN, SOYB, WEAT, COFF, COCC, SUGA, PALM, RICE, COTT | — | Listed but not tradable: Chainlink has no agricultural feed on Robinhood Chain (checked 2026-09-26), and the page says so |
+| Agri | CORN, SOYB, WEAT, COFF, COCC, SUGA, RICE, COTT | 5× | Chainlink has no agricultural feed on Robinhood Chain: Robinchan posts Yahoo Finance quotes (about 10 minutes behind) to a `ReportedRoundFeed` per market, and the page says so (`contracts/MAINNET.md` §12). PALM (not on Yahoo) is coming soon |
+| RH Tokens | PONS, CASHCAT, DELTA | 5× | Robinhood Chain's own tokens, priced by their own Uniswap V3 pool's 15-minute TWAP (`TwapRoundFeed`, in USD through Chainlink's ETH/USD). 24/7, $10k a position at most, and only while the pool holds $500k; an hour without a fresh average stops the market (`contracts/MAINNET.md` §13) |
 
 A Chainlink feed publishes a new round when its price moves 0.5% or once a day, so between
 rounds the on-chain price can trail the market by up to 0.5%. That's why crypto stops at 20× —
@@ -309,7 +310,8 @@ whose feed has stopped.
 
 - **API** under `/api/perps/`: `markets`, `stats/:symbol`, `price/:symbol`, `candles/:symbol`,
   `positions`, `history`, `orders` (waiting on chain), `collateral`, `quote`, `record`,
-  `cancel`, `actions/:id`, `faucet` (dev). Wallet routes need the SIWE session and have
+  `cancel`, `actions/:id`, `faucet` (dev). `/api/rh-tokens`: the RH Tokens, their pools and
+  whether each pool holds the $500k to list. Wallet routes need the SIWE session and have
   per-wallet limits; a quote lives 20 seconds and is bound to one address.
 - **Worker.** `perp-prices` reads every feed's latest round in one multicall every 5 s into the
   cache the API reads, and builds the chart bars — carrying each round forward until the next,
@@ -319,7 +321,10 @@ whose feed has stopped.
   ones no round priced, releases the ones asked back, and cancels the ones on a feed Chainlink
   moved to a new aggregator. `perps` runs every 5 s: lapsed quotes, transactions
   in flight, the contract's events mirrored into `perp_positions`, liquidations and delisted
-  markets. Both keep running with the flag off while positions are open.
+  markets. Both keep running with the flag off while positions are open. `twap-rounds` calls
+  `update()` on each RH Token's `TwapRoundFeed` — every minute while an order waits on it, every 5
+  with positions open, every 16 otherwise (each update is ~200k gas) — and `rh-tokens` reads the
+  RH Tokens' pools from DexScreener every 2 minutes.
 - **The keeper key** (`KEEPER_PRIVATE_KEY`, worker only) calls only permissionless functions. It
   holds gas and the execution fees it earns, never user funds. Without it, orders wait for
   someone else to execute them.

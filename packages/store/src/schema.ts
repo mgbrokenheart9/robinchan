@@ -196,7 +196,7 @@ create table if not exists perp_positions (
   chain_id           integer,
   chain_position_id  numeric,
   symbol             text not null,
-  category           text not null check (category in ('agri', 'crypto', 'stocks')),
+  category           text not null check (category in ('agri', 'crypto', 'stocks', 'rh')),
   side               text not null check (side in ('long', 'short')),
   collateral         numeric not null check (collateral > 0),
   size               numeric not null check (size > 0),
@@ -221,6 +221,21 @@ create table if not exists perp_positions (
   closed_at          timestamptz,
   updated_at         timestamptz not null default now()
 );
+-- The original check had no RH Tokens ('rh').
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+     where conname = 'perp_positions_category_check'
+       and pg_get_constraintdef(oid) not like '%''rh''%'
+  ) then
+    alter table perp_positions drop constraint perp_positions_category_check;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'perp_positions_category_check') then
+    alter table perp_positions add constraint perp_positions_category_check
+      check (category in ('agri', 'crypto', 'stocks', 'rh'));
+  end if;
+end $$;
 create unique index if not exists perp_positions_chain_idx
   on perp_positions (chain_id, chain_position_id) where chain_position_id is not null;
 create index if not exists perp_positions_user_idx on perp_positions (user_id, opened_at desc);

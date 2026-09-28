@@ -97,5 +97,60 @@
       "description": "Robinhood META / USD"
     },
     "mockPrice": 749
+  },
+  {
+    "symbol": "SPCX",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb",
+      "description": "Robinhood SPCX / USD"
+    },
+    "mockPrice": 147
+  },
+  {
+    "symbol": "SPY",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x319724394D3A0e3669269846abE664Cd621f9f6A",
+      "description": "RHSPY / USD"
+    },
+    "mockPrice": 771
+  },
+  {
+    "symbol": "CRCL",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a",
+      "description": "Robinhood CRCL / USD"
+    },
+    "mockPrice": 86
+  },
+  {
+    "symbol": "MU",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596",
+      "description": "RHMU / USD"
+    },
+    "mockPrice": 1051
+  },
+  {
+    "symbol": "GLD",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x470A51258068043bd43dC0a56245625C9fE86eB0",
+      "description": "GLD / USD"
+    },
+    "mockPrice": 380
   }
 ]

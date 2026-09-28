@@ -29,7 +29,8 @@ export type Mark = {
    * Good to open, close or liquidate against: the feed published within its
    * heartbeat, and the market's session is open. A Chainlink round can be
    * hours old and still current — the feed only publishes when the price
-   * moves 0.5% or its 24 hours are up.
+   * moves 0.5% or its 24 hours are up. An RH Token's average is refreshed
+   * every minute: an hour without one and it's stopped (the circuit breaker).
    */
   fresh: boolean;
   source: 'chainlink' | 'fixture';
@@ -65,6 +66,15 @@ function displayState(def: PerpMarketDef): MarketState | null {
   };
 }
 
+/**
+ * Whether a price `ageSec` old can be traded on: no older than the market's
+ * limit — an hour for an RH Token's average, Chainlink's heartbeat and an
+ * hour otherwise — and the market in session.
+ */
+export function perpPriceFresh(def: Pick<PerpMarketDef, 'maxPriceAgeSec' | 'schedule'>, ageSec: number, nowMs = Date.now()): boolean {
+  return ageSec <= (def.maxPriceAgeSec ?? PERP_PRICE_MAX_AGE_SEC) && perpSessionOpen(def, nowMs);
+}
+
 export async function perpMarks(): Promise<Map<string, Mark>> {
   const [feeds, states] = await Promise.all([readFeedPrices(), perpMarketStates()]);
   const venue = perpsVenue();
@@ -85,7 +95,7 @@ export async function perpMarks(): Promise<Map<string, Mark>> {
       conf: 0,
       publishTime: p.publishTime,
       ageSec,
-      fresh: ageSec <= PERP_PRICE_MAX_AGE_SEC && perpSessionOpen(def, nowMs),
+      fresh: perpPriceFresh(def, ageSec, nowMs),
       source: p.source,
       feedId: state.feedId,
       state,
@@ -117,7 +127,7 @@ export function perpMarketStatus(
     return {
       status: 'unavailable',
       statusNote:
-        def.category === 'agri'
+        def.category === 'agri' || def.category === 'rh'
           ? `Coming soon. ${def.name} perps open once its price feed is listed on the perps contract.`
           : `${def.symbol} isn't listed on the perps contract yet.`,
     };
@@ -132,7 +142,22 @@ export function perpMarketStatus(
   if (!perpSessionOpen(def)) {
     return { status: 'closed', statusNote: `Market closed for the weekend. ${def.symbol} trades ${def.hours}.` };
   }
-  if (!mark) return { status: 'closed', statusNote: def.reported?.roundFeed ? 'No price yet: one is posted once the exchange trades.' : 'No price from Chainlink yet.' };
+  if (!mark) {
+    return {
+      status: 'closed',
+      statusNote: def.reported?.roundFeed
+        ? 'No price yet: one is posted once the exchange trades.'
+        : def.twap
+          ? 'No price yet: the first 15-minute average lands a quarter of an hour after the feed starts.'
+          : 'No price from Chainlink yet.',
+    };
+  }
+  if (!mark.fresh && def.twap) {
+    return {
+      status: 'closed',
+      statusNote: `Paused: ${def.symbol}'s last 15-minute average is from ${ago(mark.ageSec)}. Past an hour the circuit breaker stops new orders and liquidations until the pool's average updates again.`,
+    };
+  }
   if (!mark.fresh) {
     return {
       status: 'closed',

@@ -326,7 +326,9 @@ function WaitingOrders({ orders, onSymbol }: { orders: Resource<PerpWaitingOrder
               <p className="mt-1 text-[12px] leading-snug text-text-3">
                 {askedAt
                   ? `Asked back: released by ${releaseTime(askedAt)}, unless its price was already observed.`
-                  : `Placed ${now == null ? '' : relativeTime(o.createdAt, now)} · fills at Chainlink’s next ${o.symbol} price, within ${marketPrice(o.acceptablePrice)}.`}
+                  : `Placed ${now == null ? '' : relativeTime(o.createdAt, now)} · fills at ${
+                      perpMarket(o.symbol)?.twap ? `the first 15-minute ${o.symbol} average after it (about 16 minutes)` : `Chainlink’s next ${o.symbol} price`
+                    }, within ${marketPrice(o.acceptablePrice)}.`}
               </p>
             </div>
             {o.cancellable && !asked[o.id] ? (

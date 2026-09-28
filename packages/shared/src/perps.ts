@@ -5,12 +5,14 @@ import type { Address, OrderExecution } from './types';
  * priced by Chainlink Data Feeds on Robinhood Chain and settled in USDC
  * against a liquidity pool. Of the brief's agricultural markets, coffee,
  * cocoa and sugar come through Pyth (a PythRoundFeed per market) once it's
- * deployed; the rest have no feed anywhere and stay coming soon. Shared by web, API and
+ * deployed; the rest have no feed anywhere and stay coming soon. RH Tokens —
+ * Robinhood Chain's own tokens — are priced by their Uniswap pool's
+ * 15-minute TWAP (a TwapRoundFeed each). Shared by web, API and
  * worker — the market registry, the shapes the API returns, and the math
  * every layer has to agree on.
  */
 
-export const PERP_CATEGORIES = ['agri', 'crypto', 'stocks'] as const;
+export const PERP_CATEGORIES = ['agri', 'crypto', 'stocks', 'rh'] as const;
 export type PerpCategory = (typeof PERP_CATEGORIES)[number];
 
 export type PerpSide = 'long' | 'short';
@@ -60,7 +62,51 @@ export type PerpMarketDef = {
   pyth?: PerpPythFeed;
   /** Agri markets whose prices the operator posts (ReportedRoundFeed), read from Yahoo Finance. */
   reported?: PerpReportedFeed;
+  /** RH Tokens: the DEX pool whose time-weighted average prices the market (TwapRoundFeed). */
+  twap?: PerpTwapFeed;
+  /** A price older than this means the feed stopped (default PERP_PRICE_MAX_AGE_SEC, Chainlink's heartbeat and an hour). */
+  maxPriceAgeSec?: number;
+  /** The largest one position may be (its size), USD. Unset: only the open-interest cap. */
+  maxPositionUsd?: number;
 };
+
+/**
+ * An RH Token market: a Robinhood Chain token priced by its own Uniswap V2 or
+ * V3 pool's time-weighted average (contracts/contracts/oracles/TwapRoundFeed.sol),
+ * in USD through Chainlink's ETH/USD. No oracle network prices these tokens,
+ * so the pool is the oracle — and the pool has to be deep enough that moving
+ * its average for 15 minutes costs more than a position could win.
+ */
+export type PerpTwapFeed = {
+  /** The deployed TwapRoundFeed; null until then, and the market stays coming soon. */
+  roundFeed: `0x${string}` | null;
+  /** What the round feed's `description()` returns. */
+  description: string;
+  /** The token on Robinhood Chain; null when there's none trading there. */
+  token: `0x${string}` | null;
+  /**
+   * The pool the average is read from: a Uniswap V2 pair (its cumulative
+   * price) or a V3 pool (its cumulative tick). Null when the token has
+   * neither: Uniswap v4 pools keep no price record on chain to read.
+   */
+  pool: { address: `0x${string}`; label: string; kind: 'uniswap-v2' | 'uniswap-v3' } | null;
+};
+
+/** RH Tokens brief: thin, fast-moving tokens — 5× at most. */
+export const RH_TOKEN_MAX_LEVERAGE = 5;
+/** RH Tokens brief: the largest one position may be, USD. */
+export const RH_TOKEN_MAX_POSITION_USD = 10_000;
+/** RH Tokens brief: a token is listed only while the pool its price comes from holds this much, USD (both sides). */
+export const RH_TOKEN_MIN_LIQUIDITY_USD = 500_000;
+/** Each round's average spans 15 minutes (TwapRoundFeed's `window`). */
+export const TWAP_WINDOW_SEC = 900;
+/** RH Tokens brief's circuit breaker: an hour without a fresh average and the market stops (TwapRoundFeed's `maxStaleness`). */
+export const TWAP_MAX_AGE_SEC = 3_600;
+/** The RH Tokens tab's banner, word for word from the brief. */
+export const RH_TOKEN_WARNING =
+  '⚠️ RH Chain tokens are highly volatile with lower liquidity. Max leverage is capped at 5x. Trade with caution.';
+/** Where an RH Token's price comes from, as its badge says it. */
+export const TWAP_BADGE = 'DEX TWAP · 15min';
 
 /**
  * An agri market priced by the operator: the keeper reads each contract
@@ -226,9 +272,52 @@ const yahoo = (description: string, months: PerpReportedFeed['months']): PerpRep
   months,
 });
 
-/** An agri market waiting on its feed: shown as coming soon rather than as missing an oracle. */
+/** An agri or RH Token market waiting on its feed: shown as coming soon rather than as missing an oracle. */
 export const perpComingSoon = (m: { category: PerpCategory; status?: string }): boolean =>
-  m.category === 'agri' && (m.status === undefined || m.status === 'unavailable');
+  (m.category === 'agri' || m.category === 'rh') && (m.status === undefined || m.status === 'unavailable');
+
+/**
+ * The deployed TwapRoundFeeds on Robinhood Chain mainnet, by market
+ * (contracts/deployments/4663-twap.json). None yet.
+ */
+const TWAP_ROUND_FEEDS: Record<string, `0x${string}`> = {};
+
+/**
+ * An RH Token market: coming soon until its TwapRoundFeed is deployed, then
+ * priced by it like any Chainlink market — 24/7, 5× at most, $10k a
+ * position, stopped once the average is an hour old.
+ */
+function rhToken(
+  symbol: string,
+  name: string,
+  feed: { token: `0x${string}` | null; pool: PerpTwapFeed['pool'] },
+  waiting = feed.pool
+    ? `${symbol} opens once its 15-minute price feed, read from its ${feed.pool.label} pool, is live on Robinhood Chain.`
+    : `${symbol} has no Uniswap V2 or V3 pool to read a price average from.`,
+): PerpMarketDef {
+  const twap: PerpTwapFeed = {
+    roundFeed: feed.pool ? (TWAP_ROUND_FEEDS[symbol] ?? null) : null,
+    description: `Robinchan ${symbol} / USD (TWAP)`,
+    ...feed,
+  };
+  const live = twap.roundFeed && twap.pool
+    ? { feedId: twap.roundFeed, oracleSymbol: twap.description, label: `DEX TWAP · 15 min, ${twap.pool.label}`, rollAt: null }
+    : null;
+  return {
+    symbol,
+    name,
+    category: 'rh',
+    unit: '',
+    contracts: live ? [live] : [],
+    maxLeverage: RH_TOKEN_MAX_LEVERAGE,
+    hours: '24/7',
+    schedule: '24/7',
+    maxPriceAgeSec: TWAP_MAX_AGE_SEC,
+    maxPositionUsd: RH_TOKEN_MAX_POSITION_USD,
+    twap,
+    ...(live ? {} : { unavailable: `Coming soon. ${waiting}` }),
+  };
+}
 
 export const PERP_MARKETS: PerpMarketDef[] = [
   /*
@@ -361,6 +450,38 @@ export const PERP_MARKETS: PerpMarketDef[] = [
     '0x7C38C00C30BEe9378381E7B6135d7283356D71b1',
     'Robinhood META / USD',
   ),
+  // More of Robinhood's stock tokens, each with a deep pool on chain and
+  // its own Chainlink feed (checked on chain 2026-09-28). SpaceX is private:
+  // Chainlink's SPCX feed prices Robinhood's token of it.
+  stock('SPCX', 'SpaceX', '0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb', 'Robinhood SPCX / USD'),
+  stock('SPY', 'SPDR S&P 500 ETF', '0x319724394D3A0e3669269846abE664Cd621f9f6A', 'RHSPY / USD'),
+  stock('CRCL', 'Circle', '0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a', 'Robinhood CRCL / USD'),
+  stock('MU', 'Micron', '0x425EEFdCf05ed6526C3cE61Af99429A228a6d596', 'RHMU / USD'),
+  stock('GLD', 'SPDR Gold Trust', '0x470A51258068043bd43dC0a56245625C9fE86eB0', 'GLD / USD'),
+
+  /*
+   * ---- RH Tokens: Robinhood Chain's own tokens, priced by their pools ----
+   * A mix — a launchpad's token, a memecoin, a DeFi protocol's — each with a
+   * Uniswap V3 pool over $500k, checked 2026-09-28: the pool on chain
+   * (Uniswap's V3 factory 0x1f7d…2EfA, observe() answering) and the token
+   * through Token Check (sells with no tax, no owner). Their deepest pools
+   * are on Uniswap v4, which keeps no price record to read; the V3 pools
+   * named here are the deepest that do. Left out: the stock tokens, which
+   * Chainlink prices (the Stocks tab's place), and "Robinhood Wallet"
+   * (WALLET), which borrows Robinhood's name.
+   */
+  rhToken('PONS', 'Pons', {
+    token: '0x39dbed3a2bd333467115de45665cc57f813c4571',
+    pool: { address: '0xed50bdeea8adc232f159486192a4157281d722ff', label: 'Uniswap V3 PONS/WETH', kind: 'uniswap-v3' },
+  }),
+  rhToken('CASHCAT', 'Cash Cat', {
+    token: '0x020bfc650a365f8bb26819deaabf3e21291018b4',
+    pool: { address: '0xa70fc67c9f69da90b63a0e4c05d229954574e313', label: 'Uniswap V3 CASHCAT/WETH', kind: 'uniswap-v3' },
+  }),
+  rhToken('DELTA', 'Delta', {
+    token: '0xe8ffd7e24187f72afb08d75b1bb13088a989a791',
+    pool: { address: '0xd64fbda67e1015df43fa5e49f02ca844729e5f94', label: 'Uniswap V3 DELTA/WETH', kind: 'uniswap-v3' },
+  }),
 ];
 
 function crypto(
@@ -734,6 +855,60 @@ export type PerpVenueInfo = {
   pool: { balance: number; reserved: number; available: number } | null;
   deployBlock: number | null;
   feeds: Array<{ symbol: string; feed: Address; description: string }>;
+};
+
+/** One of an RH Token's pools on Robinhood Chain, as DexScreener lists it. */
+export type RhTokenPool = {
+  /** "uniswap", "sushiswap"… */
+  dex: string;
+  /** "v2", "v3", "v4"; null when DexScreener doesn't say. */
+  version: string | null;
+  /** The pool's address (a v4 pool's 32-byte id). */
+  address: string;
+  /** "CASHCAT/WETH". */
+  pair: string;
+  /** Both sides, USD. */
+  liquidityUsd: number;
+  url: string;
+};
+
+/**
+ * `GET /api/rh-tokens` (RH Tokens brief): each RH Token, its pools on
+ * Robinhood Chain, and whether the pool its price comes from — the Uniswap
+ * pool the 15-minute average is read from — is deep enough to list.
+ */
+export type RhToken = {
+  symbol: string;
+  name: string;
+  token: `0x${string}` | null;
+  status: PerpMarketStatus;
+  statusNote: string | null;
+  /** DexScreener's price across the token's pools, USD — the spot price, for reference. */
+  spotPrice: number | null;
+  /** The feed's latest 15-minute average, USD; null until it's deployed and priced. */
+  twapPrice: number | null;
+  /** When that average's window ended (ISO). */
+  twapAt: string | null;
+  /** Every pool of the token on Robinhood Chain together, USD. */
+  totalLiquidityUsd: number | null;
+  /** The pool the average is read from. Its depth — no other pool's — decides the listing. */
+  oraclePool: { address: `0x${string}`; label: string; liquidityUsd: number | null } | null;
+  /** The oracle pool holds at least `minLiquidityUsd`. */
+  meetsLiquidity: boolean;
+  pools: RhTokenPool[];
+  maxLeverage: number;
+  maxPositionUsd: number;
+};
+
+export type RhTokensBoard = {
+  tokens: RhToken[];
+  minLiquidityUsd: number;
+  windowSec: number;
+  /** "DEX TWAP · 15min". */
+  oracle: string;
+  warning: string;
+  /** When the worker last read the pools (ISO); null before its first run. */
+  checkedAt: string | null;
 };
 
 /** AgriPerp.CANCEL_DELAY: a cancel releases the order this long after it's asked for, unless its round lands first. */

@@ -27,6 +27,7 @@ import { MarketBoard, MarketHeader } from './MarketBoard';
 import { PerpChart } from './PerpChart';
 import { PerpTicket, TicketPlaceholder } from './PerpTicket';
 import { PositionsPanel } from './PositionsPanel';
+import { RhTokensPanel } from './RhTokensPanel';
 import { SAMPLE_ACCOUNT, SAMPLE_POSITIONS } from './sample';
 import { VenueCard } from './VenueCard';
 
@@ -96,6 +97,7 @@ export function PerpsView({
   const key = s.signedIn && s.session ? s.session.address.toLowerCase() : '';
   const markets = useApi<PerpMarket[]>('/api/perps/markets', { intervalMs: POLL.markets, initial: initialMarkets });
   const agriLive = Boolean(markets.data?.some((m) => m.category === 'agri' && m.status !== 'unavailable'));
+  const rhLive = Boolean(markets.data?.some((m) => m.category === 'rh' && m.status !== 'unavailable'));
   const candles = useApi<CandleSeries>(`/api/perps/candles/${symbol}?interval=${interval}`, { intervalMs: POLL.candles, keepPrevious: true });
   const account = useApi<PerpAccount>(key ? `/api/perps/collateral?as=${key}` : null, { intervalMs: POLL.account });
   const positions = useApi<PerpPosition[]>(key ? `/api/perps/positions?as=${key}` : null, { intervalMs: POLL.positions });
@@ -151,9 +153,11 @@ export function PerpsView({
     greeted.current = symbol;
     if (market.status === 'unavailable') {
       companion.say(
-        perpComingSoon(market)
-          ? `${market.symbol} (${market.name}) is coming soon: it opens once a live price feed for it is on Robinhood Chain.`
-          : `${market.symbol} (${market.name}) can't be traded: Chainlink has no price feed for it on Robinhood Chain.`,
+        market.category === 'rh'
+          ? `${market.symbol} (${market.name}) is coming soon: it opens once its 15-minute price feed from its own pool is live on Robinhood Chain.`
+          : perpComingSoon(market)
+            ? `${market.symbol} (${market.name}) is coming soon: it opens once a live price feed for it is on Robinhood Chain.`
+            : `${market.symbol} (${market.name}) can't be traded: Chainlink has no price feed for it on Robinhood Chain.`,
       );
       return;
     }
@@ -180,6 +184,10 @@ export function PerpsView({
           agriLive
             ? 'Agri futures (up to 5×) are priced by Robinchan from Yahoo Finance quotes, about 10 minutes behind the exchange.'
             : 'Agri markets are coming soon.'
+        } ${
+          rhLive
+            ? 'RH Tokens (up to 5×) are priced by their own pool’s 15-minute average.'
+            : 'RH Tokens — PONS, CASHCAT and DELTA, up to 5× — are coming soon, priced by their own pool’s 15-minute average.'
         }`}
         aside={<Pill tone={cfg.perpsVenue === 'agri-perp' ? 'accent' : 'muted'}>{venueLabel}</Pill>}
       />
@@ -188,6 +196,7 @@ export function PerpsView({
           and the board always take the click, never her. */}
       <div className="relative z-[21] space-y-4">
         <MarketBoard markets={markets} category={category} symbol={symbol} onCategory={pickCategory} onSymbol={pick} />
+        {category === 'rh' ? <RhTokensPanel onSymbol={pick} /> : null}
 
         {/* One ticket, placed by the grid: after the header on a phone, a sticky column on desktop. */}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_auto_1fr]">

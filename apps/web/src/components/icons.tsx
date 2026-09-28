@@ -10,6 +10,7 @@ import {
   CircleCheck,
   ClipboardPaste,
   Clock,
+  Coins,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -108,10 +109,12 @@ export const ChevronRightIcon = wrap(ChevronRight, 16);
 export const CheckIcon = wrap(Check, 14);
 export const CopyIcon = wrap(Copy, 14);
 
-// Perps: the three market categories, and a closed market's clock.
+// Perps: the market categories, and a closed market's clock.
 export const AgriIcon = wrap(Wheat, 14);
 export const CryptoIcon = wrap(Bitcoin, 14);
 export const StocksIcon = wrap(ChartLine, 14);
+export const RhTokensIcon = wrap(Coins, 14);
+export const WarningIcon = wrap(TriangleAlert, 14);
 export const ClockIcon = wrap(Clock, 14);
 
 /* Token Check */

@@ -285,3 +285,119 @@ terms don't cover commercial use of the data. A round goes up when the price mov
 
 **Watch for:** a market past its roll time with no next month listed logs a warning — add the
 next month to the registry before the contract expires, or pause the market.
+
+## 13. RH Tokens, priced by their own pools (DEX TWAP)
+
+RH Tokens brief, 2026-09-28: perps on Robinhood Chain's own tokens, which no oracle network
+prices. A `TwapRoundFeed` per token reads the token's **Uniswap V2 or V3** pool: each round is the
+pool's time-weighted average over 15 minutes, from the pool's own running record — a V2 pair's
+cumulative price, a V3 pool's cumulative tick — which a trade inside one block can't move (a flash
+loan can't reach it), in USD through Chainlink's ETH/USD. AgriFeed lists it like a Chainlink proxy;
+AgriPerp is unchanged. Answers have 18 decimals (AgriFeed's own), so a token worth a fraction of a
+cent keeps its digits.
+
+**The tokens (2026-09-28): a launchpad's, a memecoin, a DeFi protocol's.**
+
+| Market | Token | Pool the average is read from | Checked |
+|---|---|---|---|
+| PONS | Pons (Pons Family launchpad) | Uniswap V3 PONS/WETH 0xEd50…22ff, 0.3% | Token Check clean: no tax, no owner |
+| CASHCAT | Cash Cat (memecoin) | Uniswap V3 CASHCAT/WETH 0xA70f…E313, 1% | Token Check clean |
+| DELTA | Delta (deltaliquidity.app) | Uniswap V3 DELTA/WETH 0xD64F…5F94, 1% | Token Check clean |
+
+Each pool's `factory()` is Uniswap's V3 factory on Robinhood Chain
+(0x1f7d7550B1b028f7571E69A784071F0205FD2EfA, the same as the NVDA/USDG pool's) and answers
+`observe()`. A simulation against mainnet (`eth_simulateV1`: the three feeds deployed and updated
+for 16 minutes of block time, nothing sent) gave PONS $0.5253, CASHCAT $0.18685, DELTA $0.021583 —
+DexScreener said $0.5269, $0.1875, $0.02176 — with $1.8M, $3.9M and $1.2M in the pools by the feeds'
+own count.
+
+Left out, and why:
+- **The brief's RCHAN, FLOAT, WASSILY, SHERWOOD:** RCHAN and FLOAT trade only on Uniswap v4, which
+  keeps no price record on chain to read, and hold ~$3 and ~$10k; there's no WASSILY on Robinhood
+  Chain; Sherwood's WOOD has $440k in its V2 pair, under the floor.
+- **Tokens whose deepest pools are v4 only** (GOOSE, AI, MEME, ORBIO, NOTE, SHCAT): nothing to read.
+- **"Robinhood Wallet" (WALLET):** borrows Robinhood's name (Token Check: caution).
+- **Robinhood's stock tokens** (SPCX, SPY, CRCL, MU, GLD have deep V3 pools): Chainlink prices every
+  one of them on Robinhood Chain — they belong in the Stocks tab on those feeds, not on a DEX average.
+
+**What the brief asked for that the deployed contracts can't do**, and what stands in:
+
+- *Changes to AgriPerp* (per-market maintenance margin, liquidation fee): AgriPerp is deployed and
+  immutable. RH Tokens use its global terms — liquidation at 80% loss, 10% liquidator reward — and
+  the brief's 5× cap per market (`listMarket`).
+- *$10k max position:* AgriPerp has no per-position cap, only open interest per side. Listing starts
+  at the $10 launch cap every market started at; `set-markets.ts` raises it, to $10,000 a side at
+  most, which then caps any one position at $10k too. The API refuses a larger position with a clear
+  message either way (`maxPositionUsd` in the registry).
+- *0.3%/h funding:* `setFundingRate` is capped at 0.01%/h on chain. Funding starts at 0, as for every
+  market.
+- *RHTokenRegistry contract:* the registry is the app's (`packages/shared/src/perps.ts`, category
+  `rh`), like every other market's; the minimum liquidity is enforced by the feed itself.
+
+**Why an average read at its end can't be traded against.** A 15-minute average trails the spot
+price, and whoever sees spot move could trade against that lag. So each round's `startedAt` — what
+AgriFeed takes as when the price was observed — is when its window *began*. An order settles on the
+first round observed after it: an average of prices that all came after the order, about 16
+minutes on. Liquidations use the latest average, 15 minutes smooth. (A V3 average is the geometric
+mean of the price over the window; a V2 one, the arithmetic.)
+
+**Guards, each answering 0 (a bad-price round: its order is cancelled and refunded):** the pool
+holding less than `minLiquidityUsd` ($500k, both sides counted as twice the WETH side — for a V3
+pool, its WETH balance in range or not), or ETH/USD older than 25 hours. **Circuit breaker:** once
+no round has landed for an hour, the latest round reads 0 — AgriFeed refuses new orders and
+liquidations — until rounds resume. After a gap in the record, the next round needs a fresh 15
+minutes of history.
+
+**The keeper.** `update()` is permissionless: the worker's `twap-rounds` job calls it, and anyone
+can (the contract refuses more than one a minute). Calling it at a chosen moment only moves which
+second an average ends on. It reads the pool's current record (`observe([0])` on V3), so the pool's
+own observation cardinality doesn't matter. Each update costs ~150–220k gas (measured against
+mainnet, 2026-09-28: ~$0.01 at 0.02 gwei), so the keeper paces each feed by what its market needs:
+
+| The market | Updates | Why |
+|---|---|---|
+| An order waits on it | every minute | the order fills on the first average that starts after it: that start has to come soon |
+| Positions open | every 5 minutes | liquidations stay near the market |
+| Quiet | every 16 minutes | each update still makes a round (the contract takes a start 900–1,140 s back), well inside the hour-long breaker |
+
+A quiet feed costs ~90 updates a day (~$1), not 1,440 (~$15). If the keeper stops, the circuit
+breaker stops the markets; anyone can call `update()` to bring them back. Keep the keeper wallet
+(the SINGLE_KEY address) funded.
+
+1. **Deploy the feeds:** `npx hardhat run scripts/deploy-twap-feeds.ts --network rhMainnet` (or
+   `ONLY=CASHCAT`). Each records its first observation; a pool under the floor deploys fine and
+   answers 0. Writes `deployments/4663-twap.json`.
+2. **Point the app at them:** the addresses go in `TWAP_ROUND_FEEDS` in
+   `packages/shared/src/perps.ts`; deploy the worker, whose `twap-rounds` job then calls `update()`
+   each minute.
+3. **Open the markets** once each feed has a round priced above 0 (16–30 minutes after the worker
+   starts): `FEEDS=twap npx hardhat run scripts/list-agri-markets.ts --network rhMainnet` (5×, the $10
+   launch cap a side). A feed whose latest average is 0 is skipped. Raise the caps as the pool grows:
+   `MARKETS=PONS,CASHCAT,DELTA MAX_OI_USD=10000 npx hardhat run scripts/set-markets.ts --network rhMainnet`.
+
+**Watch for:** `[perps] CASHCAT: its average priced nothing` in the worker's log — the pool fell
+under the floor (or ETH/USD went stale). Pause the market (`setMarket`) if it stays there; open
+positions can still be closed only once rounds price again. And the tokens themselves: they're young
+and move hard — re-run Token Check before raising any cap.
+
+## 14. More stock tokens on Chainlink (SPCX, SPY, CRCL, MU, GLD)
+
+Five more of Robinhood's stock tokens, 2026-09-28: each has deep pools on Robinhood Chain and its own
+Chainlink feed there, checked on chain (description, 8 decimals, a fresh round):
+
+| Market | Feed (proxy) | `description()` |
+|---|---|---|
+| SPCX (SpaceX) | 0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb | Robinhood SPCX / USD |
+| SPY (SPDR S&P 500 ETF) | 0x319724394D3A0e3669269846abE664Cd621f9f6A | RHSPY / USD |
+| CRCL (Circle) | 0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a | Robinhood CRCL / USD |
+| MU (Micron) | 0x425EEFdCf05ed6526C3cE61Af99429A228a6d596 | RHMU / USD |
+| GLD (SPDR Gold Trust) | 0x470A51258068043bd43dC0a56245625C9fE86eB0 | GLD / USD |
+
+They're stocks like the other seven: 5× at most, 24/5 (nothing opens, closes or liquidates while the
+feed is quiet over the weekend). SpaceX is private; its feed prices Robinhood's SPCX token.
+
+**List them** on the live contracts (the stack's deploy only listed the first nine):
+`npx hardhat run scripts/list-markets.ts --network rhMainnet`. It checks each proxy's
+`description()` against the registry, lists the feed on AgriFeed and the market on AgriPerp at the
+$10 launch cap, skips what's already listed, and adds them to `deployments/4663.json`. Until then the
+page shows them as not listed yet.

@@ -27,6 +27,8 @@ import {
   runPerpMonitor,
   runPythRounds,
   runReportedRounds,
+  runRhPools,
+  runTwapRounds,
   stepBars,
   writeFeedPrices,
   type Mark,
@@ -254,6 +256,29 @@ export async function runReportedFeeds(): Promise<void> {
   if (r.reported) moved.push(`${r.reported} agri prices posted`);
   if (r.rolled) moved.push(`${r.rolled} agri months rolled`);
   if (moved.length) log.info('perps', moved.join('; '));
+}
+
+/**
+ * The RH Tokens' feeds: `update()` on each deployed TwapRoundFeed once its
+ * minute is up (core/perps/twap.ts). The pool's own cumulative price makes
+ * each 15-minute average; the keeper only keeps the record going. Nothing to
+ * do until a TwapRoundFeed is deployed and in the registry.
+ */
+export async function runTwapFeeds(): Promise<void> {
+  if (perpsVenue() !== 'agri-perp' || !(await active())) return;
+  const r = await runTwapRounds();
+  if (r.rounds) log.debug('perps', `${r.rounds} TWAP rounds made (${r.updated} updates)`);
+}
+
+/**
+ * The RH Tokens board: each token's pools on DexScreener, and each deployed
+ * feed's own reading of its pool (core/perps/rh-tokens.ts), for
+ * `/api/rh-tokens`.
+ */
+export async function runRhTokenPools(): Promise<void> {
+  if (!(await active())) return;
+  const withPools = await callProvider({ id: 'dexscreener', configured: true }, () => runRhPools());
+  log.debug('perps', `RH Tokens: ${withPools} with pools on Robinhood Chain`);
 }
 
 /**

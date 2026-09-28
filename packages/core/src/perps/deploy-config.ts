@@ -1,4 +1,11 @@
-import { PERP_MARKETS, tradablePerpMarkets } from '@robinchan/shared';
+import {
+  PERP_MARKETS,
+  RH_TOKEN_MAX_POSITION_USD,
+  RH_TOKEN_MIN_LIQUIDITY_USD,
+  TWAP_MAX_AGE_SEC,
+  TWAP_WINDOW_SEC,
+  tradablePerpMarkets,
+} from '@robinchan/shared';
 
 /**
  * What the contracts' deploy script lists on chain, derived from the one
@@ -29,7 +36,7 @@ export type DeployMarket = {
  */
 export const DEFAULT_FUNDING_RATE_PER_HOUR = 0;
 
-/** Where each local MockAggregator starts, in USD — the live feeds' levels on 2026-09-26; only local chains read it. */
+/** Where each local MockAggregator starts, in USD — the live feeds' levels on 2026-09-26 (the last five, 09-28); only local chains read it. */
 const MOCK_PRICES: Record<string, number> = {
   BTC: 83_750,
   ETH: 2_690,
@@ -40,6 +47,11 @@ const MOCK_PRICES: Record<string, number> = {
   GOOGL: 344,
   MSFT: 517,
   META: 749,
+  SPCX: 147,
+  SPY: 771,
+  CRCL: 86,
+  MU: 1_051,
+  GLD: 380,
 };
 
 /** An agri market's PythRoundFeed, for contracts/scripts/deploy-pyth-feeds.ts. */
@@ -63,6 +75,58 @@ export type DeployReportedFeed = {
   maxLeverage: number;
   months: Array<{ symbol: string; rollAt: string | null }>;
 };
+
+/** An RH Token's TwapRoundFeed, for contracts/scripts/deploy-twap-feeds.ts. */
+export type DeployTwapFeed = {
+  symbol: string;
+  description: string;
+  /** The token priced, and the Uniswap pool its average is read from. */
+  token: string;
+  pair: string;
+  /** TwapRoundFeed.PoolKind: 0 a Uniswap V2 pair, 1 a V3 pool. */
+  kind: 0 | 1;
+  /** The pool, for people: the feed's `source()`. */
+  source: string;
+  /** Chainlink's USD feed for the pool's other side (ETH/USD: every RH Token pool is against WETH). */
+  quoteUsdFeed: string;
+  windowSec: number;
+  /** Seconds between observations: the keeper's cadence. */
+  granularitySec: number;
+  /** The circuit breaker: the latest round reads 0 once it's this old. */
+  maxStalenessSec: number;
+  /** The quote feed's heartbeat, and an hour. */
+  quoteFeedMaxAgeSec: number;
+  /** Rounds price only while the pool holds this much, USD (both sides). */
+  minLiquidityUsd: number;
+  maxLeverage: number;
+  /** The most open interest a side may reach (the brief's $10k max position); listing starts at the launch cap. */
+  maxOiUsd: number;
+};
+
+/** A TwapRoundFeed may observe every minute at most; the keeper chooses how often (twap.ts). */
+export const TWAP_GRANULARITY_SEC = 60;
+/** Chainlink's ETH/USD proxy on Robinhood Chain mainnet. */
+const ETH_USD_FEED = '0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9';
+
+/** The RH Tokens with a Uniswap V2 or V3 pool to average, deployed or not. */
+export function twapFeedsForDeploy(): DeployTwapFeed[] {
+  return PERP_MARKETS.filter((m) => m.twap?.pool && m.twap.token).map((m) => ({
+    symbol: m.symbol,
+    description: m.twap!.description,
+    token: m.twap!.token!,
+    pair: m.twap!.pool!.address,
+    kind: m.twap!.pool!.kind === 'uniswap-v3' ? 1 : 0,
+    source: m.twap!.pool!.label,
+    quoteUsdFeed: ETH_USD_FEED,
+    windowSec: TWAP_WINDOW_SEC,
+    granularitySec: TWAP_GRANULARITY_SEC,
+    maxStalenessSec: TWAP_MAX_AGE_SEC,
+    quoteFeedMaxAgeSec: 90_000,
+    minLiquidityUsd: RH_TOKEN_MIN_LIQUIDITY_USD,
+    maxLeverage: m.maxLeverage,
+    maxOiUsd: RH_TOKEN_MAX_POSITION_USD,
+  }));
+}
 
 /** The agri markets the operator prices from Yahoo Finance, deployed or not. */
 export function reportedFeedsForDeploy(): DeployReportedFeed[] {
@@ -89,10 +153,10 @@ export function pythFeedsForDeploy(): DeployPythFeed[] {
 }
 
 export function perpMarketsForDeploy(): DeployMarket[] {
-  // The Chainlink markets: the agri ones are listed on their round feeds by
-  // contracts/scripts/list-agri-markets.ts, not by the stack's deploy.
+  // The Chainlink markets: the agri and RH Token ones are listed on their
+  // round feeds by contracts/scripts/list-agri-markets.ts, not by the stack's deploy.
   return tradablePerpMarkets()
-    .filter((m) => !m.reported && !m.pyth)
+    .filter((m) => !m.reported && !m.pyth && !m.twap)
     .map((m) => {
       const feed = m.contracts[0]!;
       return {

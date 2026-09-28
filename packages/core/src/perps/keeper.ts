@@ -399,6 +399,12 @@ function marketOf(cs: ChainState, market: Hex): ChainMarket | undefined {
 /** Orders sent recently, by id, with when. */
 const sentAt = new Map<number, number>();
 
+/** The markets with an order waiting on its round, as the executor last read them. */
+let waitingMarkets = new Set<string>();
+export function waitingOrderMarkets(): ReadonlySet<string> {
+  return waitingMarkets;
+}
+
 /**
  * Settles every pending order its feed has decided, exactly as the contract
  * proves it. An order whose round has landed — the first observed after its
@@ -447,6 +453,8 @@ export async function runOrderExecutor(): Promise<{ executed: number; cancelled:
     const m = marketOf(cs, order.market);
     return m && !m.delisted ? [[m.symbol, m] as const] : [];
   }));
+  // An RH Token's feed averages faster while an order waits on it (twap.ts).
+  waitingMarkets = new Set(markets.keys());
   await Promise.all(
     [...markets.values()].map(async (m) => {
       const r = await latestRound(client, m.feed).catch(() => null);

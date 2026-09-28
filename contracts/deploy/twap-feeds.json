@@ -1,0 +1,50 @@
+[
+  {
+    "symbol": "PONS",
+    "description": "Robinchan PONS / USD (TWAP)",
+    "token": "0x39dbed3a2bd333467115de45665cc57f813c4571",
+    "pair": "0xed50bdeea8adc232f159486192a4157281d722ff",
+    "kind": 1,
+    "source": "Uniswap V3 PONS/WETH",
+    "quoteUsdFeed": "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9",
+    "windowSec": 900,
+    "granularitySec": 60,
+    "maxStalenessSec": 3600,
+    "quoteFeedMaxAgeSec": 90000,
+    "minLiquidityUsd": 500000,
+    "maxLeverage": 5,
+    "maxOiUsd": 10000
+  },
+  {
+    "symbol": "CASHCAT",
+    "description": "Robinchan CASHCAT / USD (TWAP)",
+    "token": "0x020bfc650a365f8bb26819deaabf3e21291018b4",
+    "pair": "0xa70fc67c9f69da90b63a0e4c05d229954574e313",
+    "kind": 1,
+    "source": "Uniswap V3 CASHCAT/WETH",
+    "quoteUsdFeed": "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9",
+    "windowSec": 900,
+    "granularitySec": 60,
+    "maxStalenessSec": 3600,
+    "quoteFeedMaxAgeSec": 90000,
+    "minLiquidityUsd": 500000,
+    "maxLeverage": 5,
+    "maxOiUsd": 10000
+  },
+  {
+    "symbol": "DELTA",
+    "description": "Robinchan DELTA / USD (TWAP)",
+    "token": "0xe8ffd7e24187f72afb08d75b1bb13088a989a791",
+    "pair": "0xd64fbda67e1015df43fa5e49f02ca844729e5f94",
+    "kind": 1,
+    "source": "Uniswap V3 DELTA/WETH",
+    "quoteUsdFeed": "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9",
+    "windowSec": 900,
+    "granularitySec": 60,
+    "maxStalenessSec": 3600,
+    "quoteFeedMaxAgeSec": 90000,
+    "minLiquidityUsd": 500000,
+    "maxLeverage": 5,
+    "maxOiUsd": 10000
+  }
+]

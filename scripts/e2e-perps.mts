@@ -228,11 +228,11 @@ await check('20 markets in 3 categories; the 11 without a Chainlink feed on Robi
   await setPrice('ETH', 3000);
   const res = await anon.call<PerpMarket[]>('/api/perps/markets');
   const markets = res.body.data!;
-  assert.equal(markets.length, 20);
-  assert.deepEqual([...new Set(markets.map((m) => m.category))], ['agri', 'crypto', 'stocks']);
+  assert.equal(markets.length, 28);
+  assert.deepEqual([...new Set(markets.map((m) => m.category))], ['agri', 'crypto', 'stocks', 'rh']);
   const unavailable = markets.filter((m) => m.status === 'unavailable');
-  assert.deepEqual(unavailable.map((m) => m.symbol), ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'PALM', 'RICE', 'COTT', 'SOL', 'ARB']);
-  for (const m of unavailable) assert.match(m.statusNote ?? '', /Chainlink has no/);
+  assert.deepEqual(unavailable.map((m) => m.symbol), ['PALM', 'SOL', 'ARB', 'PONS', 'CASHCAT', 'DELTA']);
+  for (const m of unavailable) assert.match(m.statusNote ?? '', /Chainlink has no|^Coming soon\./);
   const eth = markets.find((m) => m.symbol === 'ETH')!;
   assert.equal(eth.status, 'open');
   near(eth.price as number, 3000, 1e-9, 'ETH price');

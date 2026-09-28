@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore, type ReactNode } from 'react';
 import type { CandleInterval, CandleSeries } from '@robinchan/shared';
-import { CANDLE_INTERVALS } from '@robinchan/shared';
+import { CANDLE_INTERVALS, perpMarket } from '@robinchan/shared';
 
 import { CandleChart, type ChartMode, type PriceLineSpec } from '@/components/charts/CandleChart';
 import { ChartAttribution } from '@/components/charts/ValueChart';
@@ -31,6 +31,8 @@ export function PerpChart({
 }) {
   const bars = candles.data?.candles ?? [];
   const mode = useSyncExternalStore(subscribeMode, readMode, () => 'area' as const);
+  // RH Tokens are priced by their pool's 15-minute average, not by Chainlink.
+  const source = perpMarket(symbol)?.twap ? 'the pool’s 15-minute average' : 'Chainlink';
   return (
     <section className="card overflow-hidden" aria-label={`${symbol} chart`}>
       <div className="flex h-[52px] items-center justify-between gap-3 border-b border-border-soft px-4">
@@ -72,7 +74,7 @@ export function PerpChart({
           <EmptyState
             className="h-[380px]"
             title={`No ${interval} bars for ${symbol} yet`}
-            body="Bars are built from Chainlink's prices as they arrive; a market that's been closed since launch has none yet."
+            body={`Bars are built from ${source === 'Chainlink' ? 'Chainlink’s prices' : source} as they arrive; a market that's been closed since launch has none yet.`}
             action={
               interval !== '1D' ? (
                 <button type="button" onClick={() => onInterval('1D')} className="btn-ghost h-10 min-h-0 px-4 text-[13px]">
@@ -87,7 +89,11 @@ export function PerpChart({
       </div>
       <div className="flex items-center justify-between gap-3 px-4 py-2.5">
         <span className="font-mono text-[10.5px] text-text-3">
-          {lines.length ? 'Your entry and liquidation prices are the dashed lines' : 'Prices: Chainlink on Robinhood Chain'}
+          {lines.length
+            ? 'Your entry and liquidation prices are the dashed lines'
+            : source === 'Chainlink'
+              ? 'Prices: Chainlink on Robinhood Chain'
+              : 'Prices: Uniswap TWAP on Robinhood Chain'}
         </span>
         <ChartAttribution />
       </div>

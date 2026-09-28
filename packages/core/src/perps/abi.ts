@@ -4458,6 +4458,578 @@ export const REPORTED_ROUND_FEED_ABI = [
   }
 ] as const;
 
+export const TWAP_ROUND_FEED_ABI = [
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum TwapRoundFeed.PoolKind",
+            "name": "kind",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "pair",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "baseToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "quoteUsdFeed",
+            "type": "address"
+          },
+          {
+            "internalType": "uint32",
+            "name": "window",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "granularity",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "maxStaleness",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint32",
+            "name": "quoteFeedMaxAge",
+            "type": "uint32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minLiquidityUsd",
+            "type": "uint256"
+          },
+          {
+            "internalType": "string",
+            "name": "description",
+            "type": "string"
+          },
+          {
+            "internalType": "string",
+            "name": "source",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct TwapRoundFeed.Config",
+        "name": "c",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "owner_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidParam",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint80",
+        "name": "roundId",
+        "type": "uint80"
+      }
+    ],
+    "name": "NoRound",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "nextAt",
+        "type": "uint64"
+      }
+    ],
+    "name": "TooSoon",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "minLiquidityUsd",
+        "type": "uint256"
+      }
+    ],
+    "name": "MinLiquiditySet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "timestamp",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "cumulative",
+        "type": "uint256"
+      }
+    ],
+    "name": "Observed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint80",
+        "name": "roundId",
+        "type": "uint80"
+      },
+      {
+        "indexed": false,
+        "internalType": "int256",
+        "name": "answer",
+        "type": "int256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "windowStart",
+        "type": "uint64"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "liquidityUsd",
+        "type": "uint256"
+      }
+    ],
+    "name": "RoundMade",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "baseIsToken0",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "description",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint80",
+        "name": "roundId",
+        "type": "uint80"
+      }
+    ],
+    "name": "getRoundData",
+    "outputs": [
+      {
+        "internalType": "uint80",
+        "name": "",
+        "type": "uint80"
+      },
+      {
+        "internalType": "int256",
+        "name": "answer",
+        "type": "int256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "updatedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint80",
+        "name": "answeredInRound",
+        "type": "uint80"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "granularity",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "kind",
+    "outputs": [
+      {
+        "internalType": "enum TwapRoundFeed.PoolKind",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "latestRoundData",
+    "outputs": [
+      {
+        "internalType": "uint80",
+        "name": "roundId",
+        "type": "uint80"
+      },
+      {
+        "internalType": "int256",
+        "name": "answer",
+        "type": "int256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "startedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "updatedAt",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint80",
+        "name": "answeredInRound",
+        "type": "uint80"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "liquidityUsd",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxStaleness",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minLiquidityUsd",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextUpdateAt",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "observationCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pair",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "quoteFeedMaxAge",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "quoteToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "quoteUsdFeed",
+    "outputs": [
+      {
+        "internalType": "contract IUsdFeed",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "roundCount",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "minLiquidityUsd_",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinLiquidityUsd",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "source",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "update",
+    "outputs": [
+      {
+        "internalType": "uint80",
+        "name": "roundId",
+        "type": "uint80"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "window",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+] as const;
+
 export const MOCK_USDC_ABI = [
   {
     "inputs": [

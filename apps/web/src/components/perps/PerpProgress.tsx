@@ -1,6 +1,6 @@
 'use client';
 
-import { PERP_CANCEL_DELAY_SEC } from '@robinchan/shared';
+import { PERP_CANCEL_DELAY_SEC, perpMarket } from '@robinchan/shared';
 
 import { ExternalIcon } from '@/components/icons';
 import { PulseDot, cx } from '@/components/ui';
@@ -71,7 +71,9 @@ export function PerpProgress({ state, kind }: { state: PerpSignerState; kind: 'o
             ? 'Waiting for the network to confirm…'
             : r.cancelRequestedAt
               ? `You asked for it back: it’s released by ${releaseTime(r.cancelRequestedAt)}, unless Chainlink had already observed its price — then it fills at it.`
-              : `Request landed. It fills at Chainlink’s next ${r.symbol ?? ''} price — when the price moves 0.5%, or within a day.`}
+              : r.symbol && perpMarket(r.symbol)?.twap
+                ? `Request landed. It fills at the first 15-minute ${r.symbol} average that starts after it — about 16 minutes on.`
+                : `Request landed. It fills at Chainlink’s next ${r.symbol ?? ''} price — when the price moves 0.5%, or within a day.`}
         </p>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-text-3">
           {link}

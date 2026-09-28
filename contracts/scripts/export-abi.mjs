@@ -18,6 +18,8 @@ const abis = {
   PYTH_ROUND_FEED_ABI: artifact('oracles/PythRoundFeed.sol/PythRoundFeed.json'),
   // Prices the operator posts (the agri markets, read from Yahoo Finance): the keeper reports and rolls.
   REPORTED_ROUND_FEED_ABI: artifact('oracles/ReportedRoundFeed.sol/ReportedRoundFeed.json'),
+  // A Uniswap V2 pool's TWAP as rounds (the RH Tokens markets): the keeper calls update() each minute.
+  TWAP_ROUND_FEED_ABI: artifact('oracles/TwapRoundFeed.sol/TwapRoundFeed.json'),
   // Only what the app calls on the test collateral: minting for the testnet faucet.
   MOCK_USDC_ABI: artifact('test/MockUSDC.sol/MockUSDC.json').filter((x) => x.type === 'function' && x.name === 'mint'),
   // A Chainlink feed as its proxies expose it (AggregatorV3Interface) — the mock implements the same reads.

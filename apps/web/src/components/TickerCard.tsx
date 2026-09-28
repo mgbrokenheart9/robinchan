@@ -8,8 +8,9 @@ import { cx } from '@/components/ui';
  * Company marks, self-hosted in `public/img/tickers` (sourced from Parqet's
  * logo set) so a price row never waits on a third-party image host. Each
  * SVG is a full-bleed square tile, which is why they crop cleanly to a
- * circle. `RCHAN` uses the Robinchan logo; anything else not listed falls
- * back to a lettered disc.
+ * circle. `RCHAN` uses the Robinchan logo; the RH Tokens, the marks on
+ * their DexScreener token profiles. Anything else not listed falls back to a
+ * lettered disc.
  */
 const LOGOS: Record<string, string> = {
   AAPL: '/img/tickers/AAPL.svg',
@@ -18,6 +19,11 @@ const LOGOS: Record<string, string> = {
   MSFT: '/img/tickers/MSFT.svg',
   AMZN: '/img/tickers/AMZN.svg',
   META: '/img/tickers/META.svg',
+  SPY: '/img/tickers/SPY.svg',
+  MU: '/img/tickers/MU.svg',
+  GLD: '/img/tickers/GLD.svg',
+  // Circle's mark, from its Robinhood token's DexScreener profile (Parqet has none).
+  CRCL: '/img/tickers/CRCL.png',
   GOOGL: '/img/tickers/GOOGL.svg',
   COIN: '/img/tickers/COIN.svg',
   BTC: '/img/tickers/BTC.svg',
@@ -25,6 +31,9 @@ const LOGOS: Record<string, string> = {
   SOL: '/img/tickers/SOL.svg',
   ARB: '/img/tickers/ARB.png',
   RCHAN: '/img/logo.jpg',
+  PONS: '/img/tickers/PONS.png',
+  CASHCAT: '/img/tickers/CASHCAT.jpg',
+  DELTA: '/img/tickers/DELTA.jpg',
 };
 
 /**

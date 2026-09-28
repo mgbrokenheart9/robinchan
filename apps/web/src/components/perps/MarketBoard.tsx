@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { PerpCategory, PerpMarket } from '@robinchan/shared';
-import { direction, formatPct, formatUsdCompact, perpComingSoon } from '@robinchan/shared';
+import { RH_TOKEN_WARNING, TWAP_BADGE, direction, formatPct, formatUsd, formatUsdCompact, perpComingSoon, perpMarket } from '@robinchan/shared';
 
-import { AgriIcon, ClockIcon, CryptoIcon, LockIcon, StocksIcon } from '@/components/icons';
+import { AgriIcon, ClockIcon, CryptoIcon, LockIcon, RhTokensIcon, StocksIcon } from '@/components/icons';
 import { TickerLogo, hasTickerLogo } from '@/components/TickerCard';
 import { ErrorState, UpdatedAt } from '@/components/states';
 import { PulseDot, Skeleton, cx } from '@/components/ui';
@@ -15,10 +16,35 @@ const CATEGORIES: Array<{ id: PerpCategory; label: string; Icon: typeof AgriIcon
   { id: 'agri', label: 'Agri', Icon: AgriIcon },
   { id: 'crypto', label: 'Crypto', Icon: CryptoIcon },
   { id: 'stocks', label: 'Stocks', Icon: StocksIcon },
+  { id: 'rh', label: 'RH Tokens', Icon: RhTokensIcon },
 ];
 
+/** Where an RH Token's price comes from: its own pool, averaged (RH Tokens brief). */
+export function TwapBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center rounded-full border border-accent-fg/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-accent-fg',
+        className,
+      )}
+      title="Priced by the token's own Uniswap pool: the time-weighted average over 15 minutes, in USD through Chainlink's ETH/USD. A trade inside one block can't move it."
+    >
+      {TWAP_BADGE}
+    </span>
+  );
+}
+
+/** The RH Tokens tab's warning, word for word from the brief. */
+function RhWarning() {
+  return (
+    <p role="note" className="border-b border-warning/30 bg-warning/[0.07] px-4 py-2.5 text-[12.5px] leading-snug text-warning">
+      {RH_TOKEN_WARNING}
+    </p>
+  );
+}
+
 /**
- * The market selector (brief §8A): three categories, then every market in
+ * The market selector (brief §8A): four categories, then every market in
  * the chosen one as a pill with its price and 24h change. Markets without an
  * oracle are listed too — dimmed, with the reason one click away — so it's
  * clear corn or palm oil weren't forgotten, just not priceable yet.
@@ -38,10 +64,26 @@ export function MarketBoard({
 }) {
   const all = markets.data ?? [];
   const inCategory = all.filter((m) => m.category === category);
+  // On a phone the tab row scrolls: keep the chosen tab in sight (the page itself doesn't move).
+  const tabs = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = tabs.current;
+    const active = row?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!row || !active) return;
+    if (active.offsetLeft < row.scrollLeft || active.offsetLeft + active.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollLeft = active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
+    }
+  }, [category]);
   return (
     <section className="card overflow-hidden" aria-label="Markets">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
-        <div className="flex items-center gap-1 rounded-full border border-border p-1" role="tablist" aria-label="Market category">
+        {/* Four tabs outgrow a phone: the row scrolls rather than clipping the last. */}
+        <div
+          ref={tabs}
+          className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border p-1 [scrollbar-width:none]"
+          role="tablist"
+          aria-label="Market category"
+        >
           {CATEGORIES.map(({ id, label, Icon }) => {
             const live = all.filter((m) => m.category === id && m.status !== 'unavailable').length;
             const total = all.filter((m) => m.category === id).length;
@@ -53,7 +95,7 @@ export function MarketBoard({
                 aria-selected={category === id}
                 onClick={() => onCategory(id)}
                 className={cx(
-                  'flex min-h-[34px] items-center gap-1.5 rounded-full px-3.5 text-[13px] transition-colors',
+                  'flex min-h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] transition-colors',
                   category === id ? 'bg-accent text-accent-ink' : 'text-text-2 hover:text-text',
                 )}
               >
@@ -61,7 +103,7 @@ export function MarketBoard({
                 {label}
                 {total ? (
                   <span className={cx('font-mono text-[10.5px]', category === id ? 'text-accent-ink/70' : 'text-text-3')}>
-                    {live === 0 && id === 'agri' ? 'soon' : live < total ? `${live}/${total}` : total}
+                    {live === 0 && (id === 'agri' || id === 'rh') ? 'soon' : live < total ? `${live}/${total}` : total}
                   </span>
                 ) : null}
               </button>
@@ -69,10 +111,15 @@ export function MarketBoard({
           })}
         </div>
         <div className="flex items-center gap-3">
-          <span className="hidden font-mono text-[10.5px] uppercase tracking-[0.1em] text-text-3 sm:inline">Prices · Chainlink</span>
+          {category === 'rh' ? (
+            <TwapBadge />
+          ) : (
+            <span className="hidden font-mono text-[10.5px] uppercase tracking-[0.1em] text-text-3 sm:inline">Prices · Chainlink</span>
+          )}
           <UpdatedAt asOf={markets.asOf} stale={markets.stale} />
         </div>
       </div>
+      {category === 'rh' ? <RhWarning /> : null}
 
       {markets.status === 'loading' ? (
         <div className="flex gap-2 overflow-hidden px-4 py-3" aria-hidden>
@@ -110,8 +157,8 @@ function MarketChip({ market: m, active, onClick }: { market: PerpMarket; active
         unavailable && !active && 'opacity-60',
       )}
     >
-      {/* The company's or coin's mark; for a commodity, the good itself. */}
-      {hasTickerLogo(m.symbol) ? <TickerLogo symbol={m.symbol} size={26} /> : null}
+      {/* The company's or coin's mark; for a commodity, the good itself; an RH Token without one, its letter. */}
+      {hasTickerLogo(m.symbol) || m.category === 'rh' ? <TickerLogo symbol={m.symbol} size={26} /> : null}
       <span className="flex flex-col leading-tight">
         <span className="font-mono text-[13px] tracking-[0.04em] text-text">{m.symbol}</span>
         <span className="text-[11px] text-text-3">{m.name}</span>
@@ -170,23 +217,28 @@ export function MarketHeader({ market, loading }: { market: PerpMarket | null; l
     ['Leverage', `up to ${m.maxLeverage}×`],
     ['Hours', m.hours],
   ];
+  const maxPosition = perpMarket(m.symbol)?.maxPositionUsd;
+  if (maxPosition != null) stats.push(['Max position', formatUsd(maxPosition), 'The largest one position may be, collateral × leverage.']);
   if (m.contract) {
     stats.push([
       'Feed',
       m.contract,
       m.category === 'agri'
         ? 'Posted by Robinchan from Yahoo Finance quotes, about 10 minutes behind the exchange: you trust Robinchan for this price. Orders fill at the first price quoted after them.'
-        : 'A new price lands when it moves 0.5%, or once a day; orders fill at the next one.',
+        : m.category === 'rh'
+          ? "The pool's time-weighted average over 15 minutes, a new one each minute. Orders fill at the first average that starts after them — about 16 minutes on. An hour without one and trading stops."
+          : 'A new price lands when it moves 0.5%, or once a day; orders fill at the next one.',
     ]);
   }
 
   return (
     <header className="card px-5 py-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {hasTickerLogo(m.symbol) ? <TickerLogo symbol={m.symbol} size={28} /> : null}
+        {hasTickerLogo(m.symbol) || m.category === 'rh' ? <TickerLogo symbol={m.symbol} size={28} /> : null}
         <h2 className="font-mono text-[15px] tracking-[0.04em] text-text">{m.symbol}/USD</h2>
         <span className="text-[13.5px] text-text-2">{m.name}</span>
         <StatusPill market={m} />
+        {m.category === 'rh' ? <TwapBadge /> : null}
         {m.source === 'fixture' ? (
           <span
             className="rounded-full border border-warning/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-warning"

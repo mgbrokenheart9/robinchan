@@ -1,4 +1,4 @@
-import type { CandleSeries, PerpMarket, PerpMarketStats, PerpVenueInfo } from '@robinchan/shared';
+import type { CandleSeries, PerpMarket, PerpMarketStats, PerpVenueInfo, RhTokensBoard } from '@robinchan/shared';
 import { CANDLE_INTERVALS, PERP_CATEGORIES, perpMarket } from '@robinchan/shared';
 import {
   checkPendingPerpAction,
@@ -19,7 +19,9 @@ import {
   quoteRateLimit,
   readFeedPrices,
   readPerpCandles,
+  readRhPoolsSnapshot,
   recordPerpAction,
+  rhTokensBoard,
   walletRateLimit,
 } from '@robinchan/core';
 import { z } from 'zod';
@@ -89,7 +91,7 @@ export function perpsRoutes(app: ApiRouter): void {
 
   app.get('/api/perps/markets', async (request) => {
     const parsed = marketsQuery.safeParse(request.query);
-    if (!parsed.success) throw new ApiFailure('BAD_REQUEST', 'category is agri, crypto or stocks');
+    if (!parsed.success) throw new ApiFailure('BAD_REQUEST', 'category is agri, crypto, stocks or rh');
     const [markets, freshness] = await Promise.all([perpMarketViews(parsed.data.category), feedsFreshness()]);
     return envelope<PerpMarket[]>(markets, freshness);
   });
@@ -100,6 +102,18 @@ export function perpsRoutes(app: ApiRouter): void {
     const stats = await perpMarketStats(parsed.data.symbol);
     if (!stats) throw new ApiFailure('NOT_FOUND', `${parsed.data.symbol.toUpperCase()} isn't a perps market`, 404);
     return envelope<PerpMarketStats>(stats, await feedsFreshness());
+  });
+
+  /**
+   * The RH Tokens (RH Tokens brief): each token's pools, whether the one its
+   * price comes from holds the $500k to list, and its market's status and
+   * 15-minute average. Pools as the worker last read them (every two minutes).
+   */
+  app.get('/api/rh-tokens', async () => {
+    const [markets, pools] = await Promise.all([perpMarketViews('rh'), readRhPoolsSnapshot()]);
+    const board = rhTokensBoard(markets, pools?.snapshot ?? null);
+    if (!pools) return envelope<RhTokensBoard>(board, { stale: true });
+    return envelope<RhTokensBoard>(board, { stale: pools.ageSec > 600, asOf: pools.snapshot.checkedAt });
   });
 
   /** Where the venue lives — network, contracts, token, pool, feeds — for anyone to check on the explorer. */

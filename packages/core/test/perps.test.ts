@@ -9,6 +9,10 @@ import {
   CRYPTO_MAX_LEVERAGE,
   GAPPING_MAX_LEVERAGE,
   PERP_MARKETS,
+  RH_TOKEN_MAX_LEVERAGE,
+  RH_TOKEN_MAX_POSITION_USD,
+  RH_TOKEN_MIN_LIQUIDITY_USD,
+  TWAP_MAX_AGE_SEC,
   answerToUsd,
   perpComingSoon,
   perpIsLiquidatable,
@@ -100,11 +104,11 @@ await setPrice('ETH', 3000);
 /* ------------------------------------------------------------------ */
 
 describe('perps registry', () => {
-  test('every feed is a contract address, listed once — 9 Chainlink proxies and 8 reported agri feeds', () => {
+  test('every feed is a contract address, listed once — 14 Chainlink proxies and 8 reported agri feeds', () => {
     const feeds = PERP_MARKETS.flatMap((m) => m.contracts.map((c) => c.feedId));
     for (const f of feeds) assert.match(f, /^0x[0-9a-fA-F]{40}$/, f);
     assert.equal(new Set(feeds.map((f) => f.toLowerCase())).size, feeds.length);
-    assert.equal(perpOracleFeeds().length, 17);
+    assert.equal(perpOracleFeeds().length, 22);
   });
 
   test('agri trades on its reported feeds but palm oil (coming soon); SOL and ARB have no Chainlink feed', () => {
@@ -125,7 +129,7 @@ describe('perps registry', () => {
     }
     assert.deepEqual(
       tradablePerpMarkets().map((m) => m.symbol),
-      ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'RICE', 'COTT', 'BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META'],
+      ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'RICE', 'COTT', 'BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META', 'SPCX', 'SPY', 'CRCL', 'MU', 'GLD'],
     );
   });
 
@@ -149,6 +153,43 @@ describe('perps registry', () => {
     assert.equal(perpSessionOpen(perpMarket('BTC')!, Date.parse('2026-09-26T12:00:00Z')), true, 'crypto never shuts');
   });
 
+  test('RH Tokens: PONS, CASHCAT and DELTA on their Uniswap V3 pools — 24/7, 5× at most, $10k a position, coming soon until deployed', () => {
+    const rh = PERP_MARKETS.filter((m) => m.category === 'rh');
+    assert.deepEqual(rh.map((m) => m.symbol), ['PONS', 'CASHCAT', 'DELTA']);
+    for (const m of rh) {
+      assert.equal(m.maxLeverage, RH_TOKEN_MAX_LEVERAGE, m.symbol);
+      assert.equal(m.maxPositionUsd, RH_TOKEN_MAX_POSITION_USD, m.symbol);
+      assert.equal(m.maxPriceAgeSec, TWAP_MAX_AGE_SEC, m.symbol);
+      assert.equal(m.schedule, '24/7', m.symbol);
+      assert.ok(m.twap, m.symbol);
+      assert.match(m.twap.token ?? '', /^0x[0-9a-f]{40}$/, m.symbol);
+      assert.match(m.twap.pool?.address ?? '', /^0x[0-9a-f]{40}$/, m.symbol);
+      assert.equal(m.twap.pool?.kind, 'uniswap-v3', m.symbol);
+      // None is deployed yet.
+      assert.equal(m.twap.roundFeed, null, m.symbol);
+      assert.match(m.unavailable as string, /^Coming soon\./, m.symbol);
+      assert.ok(perpComingSoon(m), m.symbol);
+    }
+    assert.deepEqual(core.twapFeedsForDeploy().map((f) => [f.symbol, f.pair, f.kind, f.minLiquidityUsd, f.windowSec, f.maxStalenessSec, f.maxOiUsd]), [
+      ['PONS', '0xed50bdeea8adc232f159486192a4157281d722ff', 1, RH_TOKEN_MIN_LIQUIDITY_USD, 900, 3600, 10_000],
+      ['CASHCAT', '0xa70fc67c9f69da90b63a0e4c05d229954574e313', 1, RH_TOKEN_MIN_LIQUIDITY_USD, 900, 3600, 10_000],
+      ['DELTA', '0xd64fbda67e1015df43fa5e49f02ca844729e5f94', 1, RH_TOKEN_MIN_LIQUIDITY_USD, 900, 3600, 10_000],
+    ]);
+    assert.equal(core.perpMarketsForDeploy().some((m) => perpMarket(m.symbol)?.category === 'rh'), false, 'listed by list-agri-markets.ts, not the stack deploy');
+  });
+
+  test('an RH Token’s price is stale after an hour (the circuit breaker); a Chainlink one keeps its 25 hours', () => {
+    const at = Date.parse('2026-09-30T12:00:00Z'); // a Wednesday: stocks in session
+    assert.equal(core.perpPriceFresh(perpMarket('CASHCAT')!, 3_599, at), true);
+    assert.equal(core.perpPriceFresh(perpMarket('CASHCAT')!, 3_601, at), false);
+    assert.equal(core.perpPriceFresh(perpMarket('BTC')!, 3_601, at), true);
+    assert.equal(core.perpPriceFresh(perpMarket('BTC')!, 90_001, at), false);
+    const cat = { ...perpMarket('CASHCAT')!, unavailable: undefined };
+    const status = core.perpMarketStatus(cat, null, { fresh: false, ageSec: 4_000 } as import('../src/index').Mark, { venueConfigured: false });
+    assert.equal(status.status, 'closed');
+    assert.match(status.statusNote ?? '', /circuit breaker/);
+  });
+
   test('contracts/deploy/markets.json matches the registry (regenerate with scripts/perps-markets.mts)', () => {
     const file = JSON.parse(readFileSync(new URL('../../../contracts/deploy/markets.json', import.meta.url), 'utf8'));
     assert.deepEqual(file, core.perpMarketsForDeploy());
@@ -156,6 +197,8 @@ describe('perps registry', () => {
     assert.deepEqual(pyth, core.pythFeedsForDeploy());
     const reported = JSON.parse(readFileSync(new URL('../../../contracts/deploy/reported-feeds.json', import.meta.url), 'utf8'));
     assert.deepEqual(reported, core.reportedFeedsForDeploy());
+    const twap = JSON.parse(readFileSync(new URL('../../../contracts/deploy/twap-feeds.json', import.meta.url), 'utf8'));
+    assert.deepEqual(twap, core.twapFeedsForDeploy());
   });
 });
 

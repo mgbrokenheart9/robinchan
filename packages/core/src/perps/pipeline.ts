@@ -7,6 +7,7 @@ import type {
   PerpCloseQuote,
   PerpWaitingOrder,
   PerpCollateralQuote,
+  PerpMarketDef,
   PerpOpenQuote,
   PerpPosition,
   PerpQuote,
@@ -206,8 +207,10 @@ function executionFeeFor(cs: ChainState): bigint {
 }
 
 /** What a trader waits for on chain: Chainlink publishes when the price moves past its threshold, or daily. */
-const EXECUTION_NOTE = (symbol: string) =>
-  `The order fills at Chainlink's next ${symbol} price — published when the price moves 0.5%, or within 24 hours. On a quiet market that can take hours; while it waits you can ask for it back, forfeiting the opening fee.`;
+const EXECUTION_NOTE = (def: PerpMarketDef) =>
+  def.twap
+    ? `The order fills at the first 15-minute ${def.symbol} average that starts after it — about 16 minutes from now, at a price nobody can see yet. While it waits you can ask for it back, forfeiting the opening fee.`
+    : `The order fills at Chainlink's next ${def.symbol} price — published when the price moves 0.5%, or within 24 hours. On a quiet market that can take hours; while it waits you can ask for it back, forfeiting the opening fee.`;
 
 /* ------------------------------------------------------------------ */
 /* Quote: open                                                         */
@@ -244,6 +247,14 @@ export async function quotePerpOpen(
   }
 
   const size = round6(collateral * leverage);
+  if (def.maxPositionUsd != null && size > def.maxPositionUsd + EPS) {
+    throw new PerpError(
+      'BAD_REQUEST',
+      `${def.symbol} positions go up to $${def.maxPositionUsd.toLocaleString('en-US')} of size: at ${leverage}×, that's ${(def.maxPositionUsd / leverage).toFixed(2)} ${perpCollateralSymbol()} of collateral at most.`,
+      400,
+      'collateral',
+    );
+  }
   const fee = round6((size * t.feeBps) / 10_000);
   // Checked after the trader's balance: someone who can't pay for it hears that first.
   const checkOpenInterest = () => {
@@ -264,11 +275,11 @@ export async function quotePerpOpen(
   const quotedAt = new Date();
   const expiresAt = new Date(quotedAt.getTime() + PERP_QUOTE_TTL_SEC * 1000).toISOString();
   const warnings: string[] = [];
-  if (venue === 'agri-perp') warnings.push(EXECUTION_NOTE(def.symbol));
+  if (venue === 'agri-perp') warnings.push(EXECUTION_NOTE(def));
   if (leverage >= 20) {
     warnings.push(`At ${leverage}×, a ${((t.threshold / leverage) * 100).toFixed(1)}% move against you liquidates the position.`);
   }
-  if (def.category !== 'crypto') {
+  if (def.schedule !== '24/7') {
     warnings.push(`${def.symbol} only trades ${def.hours}. While it's shut nothing can be closed or liquidated, and it can reopen far from here.`);
   }
 
@@ -458,7 +469,9 @@ export async function quotePerpClose(user: PerpUser, positionId: string): Promis
     throw new PerpError(
       'MARKET_CLOSED',
       mark
-        ? `${row.symbol} can't be closed while its market is shut — Chainlink last published ${mark.ageSec < 5_400 ? `${Math.round(mark.ageSec / 60)} minutes` : `${Math.round(mark.ageSec / 3_600)} hours`} ago. It trades ${def.hours}.`
+        ? def.twap
+          ? `${row.symbol} can't be closed while its 15-minute average is stale — the last one is ${Math.round(mark.ageSec / 60)} minutes old. It resumes once the pool's average updates again.`
+          : `${row.symbol} can't be closed while its market is shut — Chainlink last published ${mark.ageSec < 5_400 ? `${Math.round(mark.ageSec / 60)} minutes` : `${Math.round(mark.ageSec / 3_600)} hours`} ago. It trades ${def.hours}.`
         : `There's no ${row.symbol} price to close against yet.`,
       409,
     );
