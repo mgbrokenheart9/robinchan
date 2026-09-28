@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { Address } from '@robinchan/shared';
-import { SYMBOL_NAMES, WATCHED_SYMBOLS, symbolInfo } from '@robinchan/shared';
+import { SYMBOL_NAMES, USDG_TOKEN, WATCHED_SYMBOLS, symbolInfo } from '@robinchan/shared';
 import { cacheKey, getCache, getDb } from '@robinchan/store';
 import { formatUnits } from 'viem';
 
@@ -91,7 +91,13 @@ async function readFromChain(address: Address, registry: Map<string, TokenInfo>)
   const chain = chainConfig();
   if (!client || !chain) throw new HoldingsUnavailable('No chain RPC is configured.');
 
-  const quote = quoteToken();
+  // Unconfigured on Robinhood Chain mainnet, the stablecoin is USDG — the
+  // one bridged USDC lands as and the perps settle in.
+  const quote =
+    quoteToken() ??
+    (chain.id === USDG_TOKEN.chainId && !chain.devFallback
+      ? { symbol: USDG_TOKEN.symbol, address: USDG_TOKEN.address as Address, decimals: USDG_TOKEN.decimals }
+      : null);
   const tokens = [...registry.values(), ...(quote ? [quote] : [])];
 
   const balances = await readBalances(address, tokens);

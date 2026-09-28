@@ -37,6 +37,14 @@ export const RCHAN_TOKEN = {
   chainId: 4663,
 } as const;
 
+/** Paxos' Global Dollar on Robinhood Chain: where bridged USDC lands, and what the perps settle in. */
+export const USDG_TOKEN = {
+  address: '0x5fc5360d0400a0fd4f2af552add042d716f1d168',
+  symbol: 'USDG',
+  decimals: 6,
+  chainId: 4663,
+} as const;
+
 export const INDEX_SYMBOLS = ['SPX', 'NDX', 'DJI', 'VIX', 'RCHAN'] as const;
 
 export const INDEX_NAMES: Record<string, string> = {
