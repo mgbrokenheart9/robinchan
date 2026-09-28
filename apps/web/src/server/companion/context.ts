@@ -30,6 +30,7 @@ export async function pageContextBlock(ctx: PageContext | undefined, session: Se
     if (ctx.page === 'heat') await heatLines(ctx.symbol ?? null, session, lines);
     else if (ctx.page === 'perps') await perpsLines(ctx.symbol ?? null, session, lines);
     else if (ctx.page === 'portfolio') await portfolioLines(session, lines);
+    else if (ctx.page === 'market') marketLines(lines);
     else return null;
   } catch (err) {
     console.warn(`[chat] page context for ${ctx.page} unavailable: ${(err as Error).message}`);
@@ -79,9 +80,10 @@ async function heatLines(symbol: string | null, session: Session | null, lines: 
 
 async function perpsLines(symbol: string | null, session: Session | null, lines: string[]): Promise<void> {
   lines.push(
-    'Page: Perps — synthetic perpetuals on crypto and US stocks, priced by Chainlink on Robinhood Chain, settled in USDC ' +
-      '(the agricultural markets are listed but untradable: Chainlink has no feed for them there). On chain an order fills at ' +
-      "Chainlink's next price for the market, which can take hours on a quiet market. " +
+    'Page: Perps — perpetuals on Robinhood Chain, settled in USDG: crypto and US stocks priced by Chainlink, and agricultural ' +
+      'futures (corn, soybeans, wheat, coffee, cocoa, sugar, rice, cotton) priced by Robinchan from Yahoo Finance quotes, about ' +
+      '10 minutes behind the exchange — say so when an agri price comes up. An order fills at the market’s next price after it, ' +
+      'which can take a while on a quiet market. ' +
       'You never open or close positions yourself; the user signs. Explain mechanics (margin, leverage, funding, liquidation) ' +
       'but never suggest a direction, a size or a leverage.',
   );
@@ -112,6 +114,13 @@ async function perpsLines(symbol: string | null, session: Session | null, lines:
         `liquidation $${formatPriceSmart(p.liquidationPrice)}, unrealized PnL ${p.unrealizedPnl == null ? 'unknown (no fresh price)' : `$${p.unrealizedPnl.toFixed(2)}`}.`,
     );
   }
+}
+
+function marketLines(lines: string[]): void {
+  lines.push(
+    'Page: Market — the index strip (S&P 500 through SPY, Nasdaq 100 through QQQ, Bitcoin and Ether, all from Chainlink, and ' +
+      '$RCHAN), the news tape and feed, live TV and upcoming catalysts. The figures are in <market_data>.',
+  );
 }
 
 async function portfolioLines(session: Session | null, lines: string[]): Promise<void> {

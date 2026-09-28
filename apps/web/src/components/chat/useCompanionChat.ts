@@ -16,7 +16,7 @@ export type ChatNote = { tone: 'info' | 'error'; text: string };
 const GREETING =
   "Hi! I'm Robinchan. Ask me what's moving, what a filing means, or how an order would work, and I'll explain it in plain words.";
 
-const VOICE_STORAGE_KEY = 'robinchan.voice';
+export const VOICE_STORAGE_KEY = 'robinchan.voice';
 
 /** Typewriter speed when there's no audio to follow. */
 const TYPE_MS = 32;
@@ -190,7 +190,7 @@ export function useCompanionChat({
  * if the provider normalised anything and they drift, the position is scaled
  * across so the reveal still finishes exactly when the audio does.
  */
-function revealer(
+export function revealer(
   text: string,
   alignment: { chars: string[]; starts: number[] },
 ): (elapsed: number) => string {

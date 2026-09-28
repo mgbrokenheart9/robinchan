@@ -14,10 +14,13 @@ import {
 import type { HeatScore, MarketIndex, PerpMarket } from '@robinchan/shared';
 import { formatPrice } from '@robinchan/shared';
 
+import { VOICE_STORAGE_KEY, revealer } from '@/components/chat/useCompanionChat';
 import { ArrowRightIcon, CloseIcon } from '@/components/icons';
 import type { Live2DHandle, StageStatus } from '@/components/live2d/Live2DCanvas';
 import { cx } from '@/components/ui';
 import { getEnvelope } from '@/lib/api';
+import { base64ToArrayBuffer, unlockAudio } from '@/lib/audio';
+import type { ChatErrorBody, ChatResponseBody } from '@/lib/chat';
 
 import { useCompanion } from './CompanionProvider';
 
@@ -244,6 +247,10 @@ export function PeekingCompanion() {
   const [bubbleFor, setBubbleFor] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<{ page: string; greeting: Greeting } | null>(null);
   const [hovered, setHovered] = useState(false);
+  /** What she said when last tapped — the screen, read out — shown in place of the page's greeting. */
+  const [look, setLook] = useState<{ page: string; turn: number; phase: 'looking' | 'speaking' | 'done'; text: string; ask: string } | null>(null);
+  /** Bumped on every tap, page change and close, so a reply that lands late is dropped. */
+  const lookTurn = useRef(0);
   /** Vertical position: px lifted above the default bottom-docked spot. */
   const [lift, setLift] = useState(() => (typeof window === 'undefined' ? 0 : readLift()));
   const [dragging, setDragging] = useState(false);
@@ -294,12 +301,20 @@ export function PeekingCompanion() {
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [ready, active, page]);
 
-  // A brief hello, not a banner: the bubble clears itself unless hovered.
+  // A brief hello, not a banner: the bubble clears itself unless hovered —
+  // or while she's still looking at the screen or reading it out.
+  const reading = Boolean(look && look.page === page && look.phase !== 'done');
   useEffect(() => {
-    if (!page || bubbleFor !== page || hovered) return;
+    if (!page || bubbleFor !== page || hovered || reading) return;
     const t = window.setTimeout(() => setBubbleFor(null), BUBBLE_MS);
     return () => window.clearTimeout(t);
-  }, [bubbleFor, page, hovered]);
+  }, [bubbleFor, page, hovered, reading]);
+
+  // A new page: she stops reading out the last one (its note is tied to that page and stays hidden).
+  useEffect(() => {
+    lookTurn.current += 1;
+    handle.current?.stopSpeaking();
+  }, [page]);
 
   // Eyes and head follow the cursor anywhere on the page, not just over
   // her — the canvas itself is click-through, so it never sees the pointer.
@@ -386,13 +401,90 @@ export function PeekingCompanion() {
     if (d.moved) {
       setDragging(false);
       saveLift(lift);
-    } else if (page) {
-      // A tap, not a drag: toggle her note.
-      setBubbleFor((cur) => (cur === page ? null : page));
+    } else {
+      // A tap, not a drag: she reads the screen — or stops, if she's at it.
+      void readScreen();
     }
   };
 
+  /**
+   * She looks at what's on screen — the page's live figures, looked up by
+   * the server (/api/companion/look) — and says it in her own voice, the
+   * bubble filling in as she speaks. A second tap while she's at it stops her.
+   */
+  const readScreen = async () => {
+    if (!page) return;
+    if (look && look.page === page && look.phase !== 'done') {
+      stopReading();
+      return;
+    }
+    const turn = ++lookTurn.current;
+    let voiceOn = true;
+    try {
+      voiceOn = window.localStorage.getItem(VOICE_STORAGE_KEY) !== 'off';
+    } catch {
+      /* the default: she speaks */
+    }
+    // Inside the tap, before any await, or the browser won't let her speak later.
+    if (voiceOn) unlockAudio();
+    handle.current?.stopSpeaking();
+    handle.current?.setExpression('focused');
+    setBubbleFor(page);
+    setLook({ page, turn, phase: 'looking', text: 'Let me take a look…', ask: '' });
+    // A reply that lands after a newer tap, a page change or a close: this tap's note is over.
+    const settle = () => setLook((cur) => (cur && cur.turn === turn && cur.phase !== 'done' ? { ...cur, phase: 'done' } : cur));
+
+    let data: ChatResponseBody | ChatErrorBody | null = null;
+    let ok = false;
+    try {
+      const res = await fetch('/api/companion/look', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ context: companion.context, voice: voiceOn }),
+      });
+      data = (await res.json().catch(() => null)) as ChatResponseBody | ChatErrorBody | null;
+      ok = res.ok;
+    } catch {
+      /* below */
+    }
+    if (turn !== lookTurn.current) return settle();
+    if (!ok || !data || 'error' in data) {
+      const why = data && 'error' in data ? data.error.message : "I couldn't reach the server just now.";
+      setLook({ page, turn, phase: 'done', text: why, ask: '' });
+      return;
+    }
+
+    const reply = data;
+    const ask = 'Tell me more about what’s on my screen.';
+    handle.current?.setExpression(reply.mood);
+    if (reply.voice && handle.current) {
+      setLook({ page, turn, phase: 'speaking', text: '', ask });
+      const reveal = revealer(reply.reply, reply.voice.alignment);
+      try {
+        await handle.current.speak(base64ToArrayBuffer(reply.voice.audio), (elapsed) => {
+          if (turn === lookTurn.current) setLook((cur) => (cur ? { ...cur, text: reveal(elapsed) } : cur));
+        });
+      } catch {
+        /* her voice couldn't play: the text shows in full below */
+      }
+    }
+    if (turn !== lookTurn.current) return settle();
+    setLook({ page, turn, phase: 'done', text: reply.reply, ask });
+  };
+
+  const stopReading = () => {
+    lookTurn.current += 1;
+    handle.current?.stopSpeaking();
+    setLook((cur) => (cur ? { ...cur, phase: 'done' } : cur));
+  };
+
   const onKey = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      void readScreen();
+      return;
+    }
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
     e.preventDefault();
     const figTop = stageRef.current?.getBoundingClientRect().top ?? 0;
@@ -401,8 +493,11 @@ export function PeekingCompanion() {
     saveLift(next);
   };
 
-  // The × closes her note, not her: a tap on her brings it back.
-  const dismiss = () => setBubbleFor(null);
+  // The × closes her note (and stops her reading it), not her: a tap on her brings it back.
+  const dismiss = () => {
+    stopReading();
+    setBubbleFor(null);
+  };
 
   const onStatus = (status: StageStatus) => {
     if (status === 'ready') setReady(true);
@@ -413,8 +508,15 @@ export function PeekingCompanion() {
 
   const peeking = active && shownFor === page && !companion.open;
   const talking = peeking && bubbleFor === page;
-  const greeting =
-    page && loaded?.page === page ? loaded.greeting : page ? PAGES[page]!.fallback : null;
+  const pageGreeting = page && loaded?.page === page ? loaded.greeting : page ? PAGES[page]!.fallback : null;
+  const greeting: Greeting | null =
+    look && look.page === page
+      ? {
+          title: look.phase === 'looking' ? 'Looking…' : 'On your screen',
+          text: look.text || '…',
+          ask: look.ask || pageGreeting?.ask || 'What am I looking at?',
+        }
+      : pageGreeting;
 
   return (
     <>
@@ -444,7 +546,7 @@ export function PeekingCompanion() {
               onPointerCancel={onDrop}
               onLostPointerCapture={onDrop}
               onKeyDown={onKey}
-              aria-label="Robinchan: tap to show her note, drag or use the arrow keys to move her"
+              aria-label="Robinchan: tap and she reads your screen out loud; drag or use the arrow keys to move her"
               className={cx(
                 'pointer-events-auto absolute left-[6%] top-[4%] h-[52%] w-[52%] touch-none rounded-[40%]',
                 dragging ? 'cursor-grabbing' : 'cursor-grab',
