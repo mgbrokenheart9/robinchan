@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import dns from 'node:dns';
+import net from 'node:net';
 
 import pg from 'pg';
 
@@ -23,10 +25,24 @@ const state = ((globalThis as unknown as Record<symbol, unknown>)[
   Symbol.for('robinchan.store.pg')
 ] ??= {}) as PgState;
 
+/**
+ * Node tries a host's addresses one after another and gives each 250 ms to
+ * connect ("happy eyeballs"). Neon's pooler is in Singapore: from a server
+ * far from it a TCP handshake can take longer, every address "times out",
+ * and the connect fails with an AggregateError of ETIMEDOUTs and an empty
+ * message — the worker died at boot on it (2026-09-27 and -28). Each attempt
+ * gets 3 s, and IPv4 goes first (the hosts here have no IPv6 route).
+ */
+function patientConnections(): void {
+  net.setDefaultAutoSelectFamilyAttemptTimeout?.(3_000);
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 export function getPgPool(): pg.Pool | null {
   const url = databaseUrl();
   if (!url) return null;
   if (!state.pool) {
+    patientConnections();
     const pool = new pg.Pool({ connectionString: url, max: 8, connectionTimeoutMillis: 10_000 });
     // Neon closes idle connections when its compute scales to zero. Without a
     // listener, that error on an idle client would crash the whole process.

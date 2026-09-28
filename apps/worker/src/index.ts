@@ -115,7 +115,18 @@ async function main(): Promise<void> {
     `cache=${cacheBackend()} db=${dbBackend()} env=${process.env.RC_ENV ?? 'dev'}`,
   );
 
-  await getDb().migrate();
+  // The database can be out of reach for a moment at boot (a Neon compute
+  // waking up, the network): retry for a few minutes rather than exit.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await getDb().migrate();
+      break;
+    } catch (err) {
+      if (attempt >= 12) throw err;
+      log.warn('worker', `database not reachable (${describeError(err)}); retry ${attempt} in ${attempt * 5}s`);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 5_000));
+    }
+  }
 
   // Initial order matters: news first so heat has material; prices before
   // candles, which anchor to them; heat before its reads.
