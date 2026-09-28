@@ -58,7 +58,31 @@ export type PerpMarketDef = {
   unavailable?: string;
   /** Agri markets Pyth prices: where the price comes from before AgriFeed sees it. */
   pyth?: PerpPythFeed;
+  /** Agri markets whose prices the operator posts (ReportedRoundFeed), read from Yahoo Finance. */
+  reported?: PerpReportedFeed;
 };
+
+/**
+ * An agri market priced by the operator: the keeper reads each contract
+ * month's quote from Yahoo Finance (delayed ~10 minutes) and posts it, with
+ * the time the exchange quoted it, to a ReportedRoundFeed that AgriFeed lists
+ * like a Chainlink proxy. Traders trust the operator for these prices.
+ */
+export type PerpReportedFeed = {
+  /** The deployed ReportedRoundFeed; null until then, and the market stays coming soon. */
+  roundFeed: `0x${string}` | null;
+  /** What the round feed's `description()` returns. */
+  description: string;
+  /**
+   * Yahoo Finance contract months in order, e.g. KCZ26.NYB. `rollAt` is when
+   * to move to the next (ISO, UTC), a few sessions before first notice or
+   * expiry; null while the next month isn't listed here yet.
+   */
+  months: Array<{ symbol: string; rollAt: string | null }>;
+};
+
+/** Where a reported market's quotes come from, as the feed's `source()` says it. */
+export const reportedSource = (symbol: string): string => `Yahoo Finance ${symbol} (delayed)`;
 
 /**
  * An agri market priced by Pyth: its dated futures months, front first, and
@@ -99,7 +123,14 @@ export const GAPPING_MAX_LEVERAGE = 5;
 const CHAINLINK_CHECKED = '2026-09-26';
 
 /** A market with no Chainlink feed on Robinhood Chain: listed, with the reason, never tradable. */
-function noFeed(symbol: string, name: string, category: PerpCategory, unit: string, hours: string, note?: string): PerpMarketDef {
+function noFeed(
+  symbol: string,
+  name: string,
+  category: PerpCategory,
+  unit: string,
+  hours: string,
+  note?: string,
+): PerpMarketDef {
   return {
     symbol,
     name,
@@ -110,7 +141,8 @@ function noFeed(symbol: string, name: string, category: PerpCategory, unit: stri
     hours,
     schedule: category === 'crypto' ? '24/7' : '24/5',
     unavailable:
-      note ?? `Chainlink has no ${name.toLowerCase()} price feed on Robinhood Chain (checked ${CHAINLINK_CHECKED}), so there's no oracle to settle against.`,
+      note ??
+      `Chainlink has no ${name.toLowerCase()} price feed on Robinhood Chain (checked ${CHAINLINK_CHECKED}), so there's no oracle to settle against.`,
   };
 }
 
@@ -129,64 +161,164 @@ const agri = (symbol: string, name: string, unit: string, hours: string) =>
   );
 
 /**
- * An agri market Pyth prices (the ICE softs, as dated futures): coming soon
- * until its PythRoundFeed is deployed, then a market like any Chainlink one —
- * the round feed stands where a Chainlink proxy would, and AgriFeed lists it.
+ * An agri market: coming soon until one of its round feeds is deployed —
+ * the operator's (reported, from Yahoo Finance) or Pyth's — then a market like
+ * any Chainlink one: the round feed stands where a Chainlink proxy would, and
+ * AgriFeed lists it. The reported feed wins while both exist.
  */
-function agriPyth(symbol: string, name: string, unit: string, hours: string, pyth: PerpPythFeed): PerpMarketDef {
-  if (!pyth.roundFeed) return { ...agri(symbol, name, unit, hours), pyth };
+function agriMarket(
+  symbol: string,
+  name: string,
+  unit: string,
+  hours: string,
+  feeds: { pyth?: PerpPythFeed; reported?: PerpReportedFeed },
+): PerpMarketDef {
+  const { pyth, reported } = feeds;
+  const live = reported?.roundFeed
+    ? {
+        feedId: reported.roundFeed,
+        oracleSymbol: reported.description,
+        label: `Robinchan-posted, from Yahoo Finance (delayed ~10 min)`,
+        rollAt: reported.months[0]?.rollAt ?? null,
+      }
+    : pyth?.roundFeed
+      ? {
+          feedId: pyth.roundFeed,
+          oracleSymbol: pyth.description,
+          label: pyth.description,
+          rollAt: pyth.months[0]?.rollAt ?? null,
+        }
+      : null;
+  if (!live) return { ...agri(symbol, name, unit, hours), ...feeds };
   return {
     symbol,
     name,
     category: 'agri',
     unit,
-    contracts: [{ feedId: pyth.roundFeed, oracleSymbol: pyth.description, label: pyth.description, rollAt: pyth.months[0]?.rollAt ?? null }],
+    contracts: [live],
     maxLeverage: GAPPING_MAX_LEVERAGE,
     hours,
     schedule: '24/5',
-    pyth,
+    ...feeds,
   };
 }
+
+/** A reported feed, not deployed yet, over these Yahoo Finance months. */
+const yahoo = (description: string, months: PerpReportedFeed['months']): PerpReportedFeed => ({
+  roundFeed: null,
+  description,
+  months,
+});
 
 /** An agri market waiting on its feed: shown as coming soon rather than as missing an oracle. */
 export const perpComingSoon = (m: { category: PerpCategory; status?: string }): boolean =>
   m.category === 'agri' && (m.status === undefined || m.status === 'unavailable');
 
 export const PERP_MARKETS: PerpMarketDef[] = [
-  /* ---- Agri: no Chainlink feed for any of them on Robinhood Chain ---- */
-  agri('CORN', 'Corn', '/bu', 'CBOT hours'),
-  agri('SOYB', 'Soybeans', '/bu', 'CBOT hours'),
-  agri('WEAT', 'Wheat', '/bu', 'CBOT hours'),
-  // Pyth feed ids checked against Hermes' feed list on 2026-09-28. The next
-  // month after the last listed here isn't on Pyth yet.
-  agriPyth('COFF', 'Arabica Coffee', '/lb', 'ICE hours', {
-    roundFeed: null,
-    description: 'Pyth Arabica Coffee / USD',
-    unitExp: -2,
-    months: [
-      { pythSymbol: 'Commodities.CFZ6/USc', feedId: '0xa61c21c0ca93300f50f231b52f59e9a6f47a07d33e78c1a9b8f84bd5928a3e8f', rollAt: '2026-11-12T15:00:00Z' },
-      { pythSymbol: 'Commodities.CFH7/USc', feedId: '0x6d2ae51093c677632d215bc74b37314e61994e5dd8ec311372f468617dd30299', rollAt: null },
-    ],
+  /*
+   * ---- Agri: no Chainlink feed for any of them on Robinhood Chain ----
+   * Yahoo Finance symbols checked on 2026-09-28. Roll times sit a few
+   * sessions before each month's first notice day (sugar: expiry). Pyth feed
+   * ids checked against Hermes' feed list the same day; Pyth's next months
+   * after the last listed here aren't on Pyth yet.
+   */
+  agriMarket('CORN', 'Corn', '/bu', 'CBOT hours', {
+    reported: yahoo('Robinchan Corn / USD', [
+      { symbol: 'ZCZ26.CBT', rollAt: '2026-11-20T15:00:00Z' },
+      { symbol: 'ZCH27.CBT', rollAt: null },
+    ]),
   }),
-  agriPyth('COCC', 'Cocoa', '/t', 'ICE hours', {
-    roundFeed: null,
-    description: 'Pyth Cocoa / USD',
-    unitExp: 0,
-    months: [
-      { pythSymbol: 'Commodities.CAZ6/USD', feedId: '0x7452a0c6aa220280021272c3cebaaa0f32cc910cd14ea43460ff8ae2d1e773ea', rollAt: '2026-11-12T15:00:00Z' },
-      { pythSymbol: 'Commodities.CAH7/USD', feedId: '0x600f4865bb8a69e773b716bf954597399861bd945cc35e06f03c42fc4f539c0c', rollAt: null },
-    ],
+  agriMarket('SOYB', 'Soybeans', '/bu', 'CBOT hours', {
+    reported: yahoo('Robinchan Soybeans / USD', [
+      { symbol: 'ZSX26.CBT', rollAt: '2026-10-23T15:00:00Z' },
+      { symbol: 'ZSF27.CBT', rollAt: '2026-12-18T15:00:00Z' },
+      { symbol: 'ZSH27.CBT', rollAt: null },
+    ]),
   }),
-  agriPyth('SUGA', 'Raw Sugar', '/lb', 'ICE hours', {
-    roundFeed: null,
-    description: 'Pyth Raw Sugar / USD',
-    unitExp: -2,
-    // October 2026 (RSV6) expired on 30 September: March 2027 is the front month.
-    months: [{ pythSymbol: 'Commodities.RSH7/USc', feedId: '0xdff723417798bd324ca03d568c04b22462a0fe9b6236e0fce1077d13d2ea69b4', rollAt: null }],
+  agriMarket('WEAT', 'Wheat', '/bu', 'CBOT hours', {
+    reported: yahoo('Robinchan Wheat / USD', [
+      { symbol: 'ZWZ26.CBT', rollAt: '2026-11-20T15:00:00Z' },
+      { symbol: 'ZWH27.CBT', rollAt: null },
+    ]),
+  }),
+  agriMarket('COFF', 'Arabica Coffee', '/lb', 'ICE hours', {
+    reported: yahoo('Robinchan Arabica Coffee / USD', [
+      { symbol: 'KCZ26.NYB', rollAt: '2026-11-12T15:00:00Z' },
+      { symbol: 'KCH27.NYB', rollAt: null },
+    ]),
+    pyth: {
+      roundFeed: null,
+      description: 'Pyth Arabica Coffee / USD',
+      unitExp: -2,
+      months: [
+        {
+          pythSymbol: 'Commodities.CFZ6/USc',
+          feedId: '0xa61c21c0ca93300f50f231b52f59e9a6f47a07d33e78c1a9b8f84bd5928a3e8f',
+          rollAt: '2026-11-12T15:00:00Z',
+        },
+        {
+          pythSymbol: 'Commodities.CFH7/USc',
+          feedId: '0x6d2ae51093c677632d215bc74b37314e61994e5dd8ec311372f468617dd30299',
+          rollAt: null,
+        },
+      ],
+    },
+  }),
+  agriMarket('COCC', 'Cocoa', '/t', 'ICE hours', {
+    reported: yahoo('Robinchan Cocoa / USD', [
+      { symbol: 'CCZ26.NYB', rollAt: '2026-11-06T15:00:00Z' },
+      { symbol: 'CCH27.NYB', rollAt: null },
+    ]),
+    pyth: {
+      roundFeed: null,
+      description: 'Pyth Cocoa / USD',
+      unitExp: 0,
+      months: [
+        {
+          pythSymbol: 'Commodities.CAZ6/USD',
+          feedId: '0x7452a0c6aa220280021272c3cebaaa0f32cc910cd14ea43460ff8ae2d1e773ea',
+          rollAt: '2026-11-12T15:00:00Z',
+        },
+        {
+          pythSymbol: 'Commodities.CAH7/USD',
+          feedId: '0x600f4865bb8a69e773b716bf954597399861bd945cc35e06f03c42fc4f539c0c',
+          rollAt: null,
+        },
+      ],
+    },
+  }),
+  agriMarket('SUGA', 'Raw Sugar', '/lb', 'ICE hours', {
+    reported: yahoo('Robinchan Raw Sugar / USD', [
+      { symbol: 'SBH27.NYB', rollAt: '2027-02-18T15:00:00Z' },
+      { symbol: 'SBK27.NYB', rollAt: null },
+    ]),
+    pyth: {
+      roundFeed: null,
+      description: 'Pyth Raw Sugar / USD',
+      unitExp: -2,
+      // October 2026 (RSV6) expired on 30 September: March 2027 is the front month.
+      months: [
+        {
+          pythSymbol: 'Commodities.RSH7/USc',
+          feedId: '0xdff723417798bd324ca03d568c04b22462a0fe9b6236e0fce1077d13d2ea69b4',
+          rollAt: null,
+        },
+      ],
+    },
   }),
   agri('PALM', 'Crude Palm Oil', '/t', 'Bursa Malaysia hours'),
-  agri('RICE', 'Rough Rice', '/cwt', 'CBOT hours'),
-  agri('COTT', 'Cotton', '/lb', 'ICE hours'),
+  agriMarket('RICE', 'Rough Rice', '/cwt', 'CBOT hours', {
+    reported: yahoo('Robinchan Rough Rice / USD', [
+      { symbol: 'ZRX26.CBT', rollAt: '2026-10-23T15:00:00Z' },
+      { symbol: 'ZRF27.CBT', rollAt: null },
+    ]),
+  }),
+  agriMarket('COTT', 'Cotton', '/lb', 'ICE hours', {
+    reported: yahoo('Robinchan Cotton / USD', [
+      { symbol: 'CTZ26.NYB', rollAt: '2026-11-13T15:00:00Z' },
+      { symbol: 'CTH27.NYB', rollAt: null },
+    ]),
+  }),
 
   /* ---- Crypto ---- */
   crypto('BTC', 'Bitcoin', '0xa2c5184bF03d373Dc9dE4876eb4Bce595B460251', 'BTC / USD'),
@@ -207,10 +339,20 @@ export const PERP_MARKETS: PerpMarketDef[] = [
   // The brief says GOOG (class C); Chainlink and the rest of the app have GOOGL (class A).
   stock('GOOGL', 'Alphabet', '0xF6f373a037c30F0e5010d854385cA89185AE638b', 'Robinhood GOOGL / USD'),
   stock('MSFT', 'Microsoft', '0x45C3C877C15E6BA2EBB19eA114Ea508d14C1Af2E', 'RHMSFT / USD'),
-  stock('META', 'Meta Platforms', '0x7C38C00C30BEe9378381E7B6135d7283356D71b1', 'Robinhood META / USD'),
+  stock(
+    'META',
+    'Meta Platforms',
+    '0x7C38C00C30BEe9378381E7B6135d7283356D71b1',
+    'Robinhood META / USD',
+  ),
 ];
 
-function crypto(symbol: string, name: string, feedId: `0x${string}`, oracleSymbol: string): PerpMarketDef {
+function crypto(
+  symbol: string,
+  name: string,
+  feedId: `0x${string}`,
+  oracleSymbol: string,
+): PerpMarketDef {
   return {
     symbol,
     name,
@@ -223,7 +365,12 @@ function crypto(symbol: string, name: string, feedId: `0x${string}`, oracleSymbo
   };
 }
 
-function stock(symbol: string, name: string, feedId: `0x${string}`, oracleSymbol: string): PerpMarketDef {
+function stock(
+  symbol: string,
+  name: string,
+  feedId: `0x${string}`,
+  oracleSymbol: string,
+): PerpMarketDef {
   return {
     symbol,
     name,
@@ -248,8 +395,16 @@ export function tradablePerpMarkets(): PerpMarketDef[] {
 }
 
 /** Every tradable market's Chainlink feed on Robinhood Chain mainnet. */
-export function perpOracleFeeds(): Array<{ symbol: string; feed: `0x${string}`; oracleSymbol: string }> {
-  return tradablePerpMarkets().map((m) => ({ symbol: m.symbol, feed: m.contracts[0]!.feedId, oracleSymbol: m.contracts[0]!.oracleSymbol }));
+export function perpOracleFeeds(): Array<{
+  symbol: string;
+  feed: `0x${string}`;
+  oracleSymbol: string;
+}> {
+  return tradablePerpMarkets().map((m) => ({
+    symbol: m.symbol,
+    feed: m.contracts[0]!.feedId,
+    oracleSymbol: m.contracts[0]!.oracleSymbol,
+  }));
 }
 
 /**
@@ -257,7 +412,10 @@ export function perpOracleFeeds(): Array<{ symbol: string; feed: `0x${string}`; 
  * hasn't come yet. Every Chainlink feed is continuous, so this is its only
  * one; null for a market without an oracle.
  */
-export function scheduledContract(def: PerpMarketDef, at: number = Date.now()): PerpFeedContract | null {
+export function scheduledContract(
+  def: PerpMarketDef,
+  at: number = Date.now(),
+): PerpFeedContract | null {
   for (const c of def.contracts) {
     if (c.rollAt == null || Date.parse(c.rollAt) > at) return c;
   }
@@ -273,9 +431,17 @@ export function contractByFeed(def: PerpMarketDef, feedId: string): PerpFeedCont
  * feeds: regular, pre-, post-market and overnight) runs from Sunday 20:00 to
  * Friday 20:00 New York time; its feed holds the last price outside it.
  */
-export function perpSessionOpen(def: Pick<PerpMarketDef, 'schedule'>, at: number = Date.now()): boolean {
+export function perpSessionOpen(
+  def: Pick<PerpMarketDef, 'schedule'>,
+  at: number = Date.now(),
+): boolean {
   if (def.schedule === '24/7') return true;
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(at));
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    weekday: 'short',
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(at));
   const weekday = parts.find((p) => p.type === 'weekday')?.value;
   const hour = Number(parts.find((p) => p.type === 'hour')?.value);
   if (weekday === 'Sat') return false;
@@ -313,7 +479,11 @@ export const PERP_MIN_LIQUIDATION_REWARD = 0.005;
 export const PERP_MAX_PROFIT_MULTIPLE = 9;
 
 /** Pool liquidity a position can ever take: min(9 × collateral, size). */
-export function perpReserve(collateral: number, size: number, maxProfitMultiple = PERP_MAX_PROFIT_MULTIPLE): number {
+export function perpReserve(
+  collateral: number,
+  size: number,
+  maxProfitMultiple = PERP_MAX_PROFIT_MULTIPLE,
+): number {
   return Math.min(collateral * maxProfitMultiple, size);
 }
 export const PERP_MIN_COLLATERAL = 1;

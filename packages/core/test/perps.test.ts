@@ -149,6 +149,8 @@ describe('perps registry', () => {
     assert.deepEqual(file, core.perpMarketsForDeploy());
     const pyth = JSON.parse(readFileSync(new URL('../../../contracts/deploy/pyth-feeds.json', import.meta.url), 'utf8'));
     assert.deepEqual(pyth, core.pythFeedsForDeploy());
+    const reported = JSON.parse(readFileSync(new URL('../../../contracts/deploy/reported-feeds.json', import.meta.url), 'utf8'));
+    assert.deepEqual(reported, core.reportedFeedsForDeploy());
   });
 });
 

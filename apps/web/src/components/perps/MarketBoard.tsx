@@ -170,7 +170,15 @@ export function MarketHeader({ market, loading }: { market: PerpMarket | null; l
     ['Leverage', `up to ${m.maxLeverage}×`],
     ['Hours', m.hours],
   ];
-  if (m.contract) stats.push(['Feed', m.contract, 'A new price lands when it moves 0.5%, or once a day; orders fill at the next one.']);
+  if (m.contract) {
+    stats.push([
+      'Feed',
+      m.contract,
+      m.category === 'agri'
+        ? 'Posted by Robinchan from Yahoo Finance quotes, about 10 minutes behind the exchange: you trust Robinchan for this price. Orders fill at the first price quoted after them.'
+        : 'A new price lands when it moves 0.5%, or once a day; orders fill at the next one.',
+    ]);
+  }
 
   return (
     <header className="card px-5 py-4">

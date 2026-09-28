@@ -95,6 +95,7 @@ export function PerpsView({
 
   const key = s.signedIn && s.session ? s.session.address.toLowerCase() : '';
   const markets = useApi<PerpMarket[]>('/api/perps/markets', { intervalMs: POLL.markets, initial: initialMarkets });
+  const agriLive = Boolean(markets.data?.some((m) => m.category === 'agri' && m.status !== 'unavailable'));
   const candles = useApi<CandleSeries>(`/api/perps/candles/${symbol}?interval=${interval}`, { intervalMs: POLL.candles, keepPrevious: true });
   const account = useApi<PerpAccount>(key ? `/api/perps/collateral?as=${key}` : null, { intervalMs: POLL.account });
   const positions = useApi<PerpPosition[]>(key ? `/api/perps/positions?as=${key}` : null, { intervalMs: POLL.positions });
@@ -175,7 +176,11 @@ export function PerpsView({
       <PageHeader
         eyebrow="Perps"
         title="Crypto and stock perpetuals"
-        lead={`Long or short crypto (up to 20×) and US stocks (up to 5×) — priced by Chainlink on Robinhood Chain, settled in ${cfg.perpsCollateral}, signed in your own wallet. Agri markets are coming soon.`}
+        lead={`Long or short crypto (up to 20×) and US stocks (up to 5×) — priced by Chainlink on Robinhood Chain, settled in ${cfg.perpsCollateral}, signed in your own wallet. ${
+          agriLive
+            ? 'Agri futures (up to 5×) are priced by Robinchan from Yahoo Finance quotes, about 10 minutes behind the exchange.'
+            : 'Agri markets are coming soon.'
+        }`}
         aside={<Pill tone={cfg.perpsVenue === 'agri-perp' ? 'accent' : 'muted'}>{venueLabel}</Pill>}
       />
 

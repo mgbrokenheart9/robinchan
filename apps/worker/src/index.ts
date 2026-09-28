@@ -11,7 +11,7 @@ const { runHeat } = await import('./jobs/heat.js');
 const { runHeatReads } = await import('./jobs/reads.js');
 const { runCandles } = await import('./jobs/candles.js');
 const { runOrders } = await import('./jobs/orders.js');
-const { runPerpOrders, runPerpPrices, runPerpUpkeep, runPythFeeds } = await import('./jobs/perps.js');
+const { runPerpOrders, runPerpPrices, runPerpUpkeep, runPythFeeds, runReportedFeeds } = await import('./jobs/perps.js');
 const { perpPriceIntervalMs } = await import('@robinchan/core');
 const { runSnapshots, msUntilMidnightUtc } = await import('./jobs/snapshots.js');
 const { runCalendar } = await import('./jobs/calendar.js');
@@ -57,6 +57,8 @@ const JOBS: Record<string, Job> = {
   perpOrders: { name: 'perp-orders', everyMs: 3_000, run: runPerpOrders },
   // The agri markets' Pyth rounds: a slot opens every few minutes.
   pythRounds: { name: 'pyth-rounds', everyMs: 10_000, run: runPythFeeds },
+  // The agri prices the operator posts, from Yahoo Finance quotes.
+  reportedRounds: { name: 'agri-prices', everyMs: 30_000, run: runReportedFeeds },
   channels: { name: 'channels', everyMs: 10 * 60_000, run: runChannels },
   // 15 min, not 5: new uploads from these channels land a few times an
   // hour at most, and each run spends YouTube quota (see providers/youtube.ts).

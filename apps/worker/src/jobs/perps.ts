@@ -26,6 +26,7 @@ import {
   runPerpIndexer,
   runPerpMonitor,
   runPythRounds,
+  runReportedRounds,
   stepBars,
   writeFeedPrices,
   type Mark,
@@ -237,6 +238,21 @@ export async function runPythFeeds(): Promise<void> {
   if (r.pushed) moved.push(`${r.pushed} Pyth rounds pushed`);
   if (r.rolled) moved.push(`${r.rolled} futures rolls carried out`);
   if (r.scheduled) moved.push(`${r.scheduled} rolls announced`);
+  if (moved.length) log.info('perps', moved.join('; '));
+}
+
+/**
+ * The agri markets the operator prices: Yahoo Finance quotes posted with the
+ * time the exchange quoted them, and the contract-month rolls
+ * (core/perps/reported.ts). Nothing to do until a ReportedRoundFeed is
+ * deployed and in the registry.
+ */
+export async function runReportedFeeds(): Promise<void> {
+  if (perpsVenue() !== 'agri-perp' || !(await active())) return;
+  const r = await runReportedRounds();
+  const moved: string[] = [];
+  if (r.reported) moved.push(`${r.reported} agri prices posted`);
+  if (r.rolled) moved.push(`${r.rolled} agri months rolled`);
   if (moved.length) log.info('perps', moved.join('; '));
 }
 

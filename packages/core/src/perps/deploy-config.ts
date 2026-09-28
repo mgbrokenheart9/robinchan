@@ -54,6 +54,27 @@ export type DeployPythFeed = {
   months: Array<{ pythSymbol: string; feedId: string; rollAt: string | null }>;
 };
 
+/** An agri market's ReportedRoundFeed, for contracts/scripts/deploy-reported-feeds.ts. */
+export type DeployReportedFeed = {
+  symbol: string;
+  description: string;
+  /** The most one round may move the price; past it the owner posts (reportUnchecked). */
+  maxMoveBps: number;
+  maxLeverage: number;
+  months: Array<{ symbol: string; rollAt: string | null }>;
+};
+
+/** The agri markets the operator prices from Yahoo Finance, deployed or not. */
+export function reportedFeedsForDeploy(): DeployReportedFeed[] {
+  return PERP_MARKETS.filter((m) => m.reported).map((m) => ({
+    symbol: m.symbol,
+    description: m.reported!.description,
+    maxMoveBps: 1500,
+    maxLeverage: m.maxLeverage,
+    months: m.reported!.months.map((x) => ({ ...x })),
+  }));
+}
+
 /** The agri markets Pyth prices, deployed or not. */
 export function pythFeedsForDeploy(): DeployPythFeed[] {
   return PERP_MARKETS.filter((m) => m.pyth).map((m) => ({

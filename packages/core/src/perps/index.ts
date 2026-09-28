@@ -16,5 +16,6 @@ export * from './markets';
 export * from './pipeline';
 export * from './prices';
 export * from './pyth';
+export * from './reported';
 export * from './state';
 export * from './venue';
