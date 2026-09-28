@@ -205,3 +205,42 @@ Chainlink is retiring.
 
 The contracts aren't upgradeable. A fix means a new deployment: pause the old markets, let
 positions close, and point the app at the new addresses.
+
+## 11. Agri markets on Pyth (coffee, cocoa, sugar)
+
+Chainlink has no agri feed on Robinhood Chain. Pyth prices the ICE softs — coffee, cocoa and
+sugar, as dated futures — and its contract here (`0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a`,
+v1.4.5-alpha.1) was confirmed official by the Pyth team on 2026-09-26. Corn, soybeans, wheat,
+palm oil, rice and cotton aren't on Pyth either; they stay coming soon.
+
+**How it plugs in.** `PythRoundFeed` (one per market) turns a Pyth feed into Chainlink-style
+rounds, so the deployed AgriFeed lists it like a proxy and AgriPerp settles on it unchanged — no
+redeploy. Each round is Pyth's *first* print at or after the next `slot` (the Pyth contract
+checks the uniqueness), so the rounds follow from Pyth's history alone: whoever pushes decides
+when a round lands, never which price it carries. Rolls between contract months are announced a
+day ahead and carried out on each month's first print after the roll time, with a roll factor
+that keeps the price continuous.
+
+**What it costs.** A round is a keeper transaction: ~111k gas for Pyth's check plus storage,
+about 0.000003 ETH on Robinhood Chain. At one round every 5 minutes during ICE hours, the three
+markets take roughly 0.001 ETH a day. Pyth's update fee on this chain is 0.
+
+**Before it can go live:** a Pyth data plan that covers commodities. Hermes needs an API key for
+every feed now, and a key on a crypto-only plan gets 403 for the softs. Check a key with
+`PYTH_API_KEY=… PYTH_FEED_ID=0xa61c21c0ca93300f50f231b52f59e9a6f47a07d33e78c1a9b8f84bd5928a3e8f npx tsx scripts/pyth-check.ts`
+(read-only calls against the real Pyth contract).
+
+1. **Deploy the feeds** (any time; they need no Pyth data yet):
+   `npx hardhat run scripts/deploy-pyth-feeds.ts --network rhMainnet` — writes
+   `deployments/4663-pyth.json` and announces the first rolls (coffee and cocoa: 12 Nov 2026).
+2. **Point the app at them:** each address goes in `packages/shared/src/perps.ts` as the market's
+   `roundFeed`; the worker needs `PYTH_API_KEY`. The keeper then pushes a round per slot, carries
+   out rolls, and — owning the feeds, as with SINGLE_KEY — announces the next roll a week ahead.
+3. **Open the markets** once each feed has a round:
+   `npx hardhat run scripts/list-pyth-markets.ts --network rhMainnet` (MAX_OI_USD, default 10).
+
+**Watch for:** a month's roll needs the next month on Pyth. Sugar starts on March 2027 (RSH7) with
+no later month listed yet, and coffee and cocoa roll to March 2027 in November; add each next month
+to the registry when Pyth lists it, or the market has to be paused before its contract expires. A
+keeper down for more than 64 slots (5 hours at 5-minute slots) during trading leaves orders
+requested in that gap unprovable — they can still be taken back.
