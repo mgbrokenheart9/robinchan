@@ -20,7 +20,8 @@ import { keeperWallet } from './keeper';
  * without one it answers 403 and the markets stay without rounds.
  */
 
-const HERMES_URL = (): string => process.env.HERMES_URL?.trim() || 'https://hermes.pyth.network';
+/** Paid plans are served from https://pyth.dourolabs.app/hermes (Pyth Core upgrade); set HERMES_URL to it. */
+const HERMES_URL = (): string => (process.env.HERMES_URL?.trim() || 'https://hermes.pyth.network').replace(/\/+$/, '');
 const hermesKey = (): string | null => process.env.PYTH_API_KEY?.trim() || null;
 
 /** A round is pushed this long after its slot opens: Hermes has the print by then. */

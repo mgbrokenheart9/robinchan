@@ -225,8 +225,12 @@ that keeps the price continuous.
 about 0.000003 ETH on Robinhood Chain. At one round every 5 minutes during ICE hours, the three
 markets take roughly 0.001 ETH a day. Pyth's update fee on this chain is 0.
 
-**Before it can go live:** a Pyth data plan that covers commodities. Hermes needs an API key for
-every feed now, and a key on a crypto-only plan gets 403 for the softs. Check a key with
+**Before it can go live:** a Pyth data plan that covers the ICE softs — they're futures. Plans
+are at app.pyth.com/plans: Starter ($500/month) is crypto only; futures are $5,000/month, metals
+and commodities $2,500, everything $10,000 (Pyth Core upgrade post, checked 2026-09-28). Ask Pyth
+which one carries `Commodities.CFZ6/USc`, `CAZ6/USD` and `RSH7/USc` before paying. Hermes needs
+an API key for every feed now; a crypto-only key gets 403 for the softs. Paid plans are served at
+`https://pyth.dourolabs.app/hermes`: set the worker's `HERMES_URL` to it. Check a key with
 `PYTH_API_KEY=… PYTH_FEED_ID=0xa61c21c0ca93300f50f231b52f59e9a6f47a07d33e78c1a9b8f84bd5928a3e8f npx tsx scripts/pyth-check.ts`
 (read-only calls against the real Pyth contract).
 

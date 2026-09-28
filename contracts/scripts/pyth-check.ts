@@ -15,13 +15,14 @@
  * Environment:
  *   PYTH_API_KEY     Hermes key (the plan must cover the feed).
  *   PYTH_FEED_ID     Default BTC/USD — coffee, cocoa and sugar need the commodities plan.
+ *   HERMES_URL       Default https://hermes.pyth.network; paid plans use https://pyth.dourolabs.app/hermes.
  *   RH_RPC_URL       Default https://robinhood.drpc.org.
  */
 import { createPublicClient, encodeFunctionData, http, maxUint64, type Hex } from 'viem';
 
 const PYTH = '0x8250f4aF4B972684F7b336503E2D6dFeDeB1487a';
 const BTC = '0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43';
-const HERMES = 'https://hermes.pyth.network';
+const HERMES = (process.env.HERMES_URL?.trim() || 'https://hermes.pyth.network').replace(/\/+$/, '');
 
 const env = (name: string): string | undefined => process.env[name]?.trim() || undefined;
 const key = env('PYTH_API_KEY');
