@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import type { Ticker } from '@robinchan/shared';
-import { direction, formatPct, formatPrice } from '@robinchan/shared';
+import { direction, formatPct, formatPriceSmart } from '@robinchan/shared';
 
 import { cx } from '@/components/ui';
 
@@ -88,7 +88,7 @@ export function TickerChip({ ticker }: { ticker: Ticker }) {
     >
       <TickerLogo symbol={ticker.symbol} size={24} />
       <span className="font-mono text-[12px] tracking-[0.04em] text-text-2">{ticker.symbol}</span>
-      <span className="t-num">{formatPrice(ticker.price)}</span>
+      <span className="t-num">{formatPriceSmart(ticker.price)}</span>
       <span className={cx('font-mono text-[12px]', TONE[dir])}>{formatPct(ticker.changePct)}</span>
     </div>
   );
@@ -109,7 +109,7 @@ export function TickerRow({ ticker, stale }: { ticker: Ticker; stale?: boolean }
         <p className="truncate text-[12px] text-text-3">{ticker.name}</p>
       </div>
       <div className="text-right">
-        <p className="t-num">{formatPrice(ticker.price)}</p>
+        <p className="t-num">{formatPriceSmart(ticker.price)}</p>
         <p className={cx('font-mono text-[12px]', TONE[dir])}>{formatPct(ticker.changePct)}</p>
       </div>
     </div>

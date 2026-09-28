@@ -6,7 +6,7 @@ import {
   POLL_MS,
   direction,
   formatPct,
-  formatPrice,
+  formatPriceSmart,
 } from '@robinchan/shared';
 
 import { Sparkline } from '@/components/Sparkline';
@@ -49,7 +49,7 @@ function IndexCard({ index, stale }: { index: MarketIndex; stale: boolean }) {
       <p className="truncate text-[11px] text-text-3">{index.name}</p>
       <div className="mt-2.5 flex items-end justify-between gap-2">
         <div>
-          <p className="font-mono text-[17px] leading-tight">{formatPrice(index.price)}</p>
+          <p className="font-mono text-[17px] leading-tight">{formatPriceSmart(index.price)}</p>
           <p className={cx('mt-1 font-mono text-[12px]', tone)}>{formatPct(index.changePct)}</p>
         </div>
         <Sparkline points={index.spark} tone={dir} width={72} height={26} />
