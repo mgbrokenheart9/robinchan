@@ -37,6 +37,15 @@ async function quotesFor(symbols: readonly string[], providerId?: string): Promi
 export async function runPrices(): Promise<void> {
   const cache = getCache();
 
+  // The strip first: it comes from Chainlink (Finnhub's free plan has no
+  // indices) and $RCHAN from a DEX, so a Finnhub 429 below mustn't hold it
+  // up. Neither is ever invented outside dev: a card with no real number
+  // isn't shown.
+  const indices = await chainlinkStrip();
+  const rchan = await rchanIndex();
+  if (rchan) indices.push(rchan);
+  await cache.set(cacheKey('market', 'indices'), indices, PRICE_TTL_SEC);
+
   const equities = await quotesFor(WATCHED_SYMBOLS);
   const tickers = equities.map((q) => toTicker(q, SYMBOL_NAMES));
   await Promise.all(tickers.map((t) => cache.set(cacheKey('price', t.symbol), t, PRICE_TTL_SEC)));
@@ -46,15 +55,6 @@ export async function runPrices(): Promise<void> {
     .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct))
     .slice(0, 5);
   await cache.set(cacheKey('market', 'snapshot'), snapshot, PRICE_TTL_SEC);
-
-  // The strip comes from Chainlink (Finnhub's free plan has no indices), and
-  // $RCHAN from a DEX. Neither is ever invented outside dev: a card with no
-  // real number isn't shown.
-  const indices = await chainlinkStrip();
-  const rchan = await rchanIndex();
-  if (rchan) indices.push(rchan);
-
-  await cache.set(cacheKey('market', 'indices'), indices, PRICE_TTL_SEC);
   log.info('prices', `${tickers.length} tickers, ${indices.length} indices updated`);
 }
 
