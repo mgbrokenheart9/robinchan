@@ -1,4 +1,5 @@
 import type { Address } from '@robinchan/shared';
+import { RCHAN_TOKEN } from '@robinchan/shared';
 
 /**
  * Token contracts on the chain. None of these addresses exist yet (open
@@ -59,9 +60,9 @@ export function tokenRegistry(): Map<string, TokenInfo> {
 }
 
 export function rchanToken(): TokenInfo | null {
-  const address = process.env.NEXT_PUBLIC_RCHAN_ADDRESS?.trim();
-  if (!address || !ADDRESS.test(address)) return null;
-  const decimals = Number(process.env.RCHAN_DECIMALS ?? 18);
+  const address = process.env.NEXT_PUBLIC_RCHAN_ADDRESS?.trim() || RCHAN_TOKEN.address;
+  if (!ADDRESS.test(address)) return null;
+  const decimals = Number(process.env.RCHAN_DECIMALS ?? RCHAN_TOKEN.decimals);
   return { symbol: 'RCHAN', address: address as Address, decimals: Number.isInteger(decimals) ? decimals : 18 };
 }
 

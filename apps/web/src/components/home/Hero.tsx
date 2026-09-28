@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { ArrowRightIcon } from '@/components/icons';
+import { TokenCA } from '@/components/TokenCA';
 import { PulseDot } from '@/components/ui';
 
 import { HeroBackground } from './HeroBackground';
@@ -68,6 +69,8 @@ export function Hero() {
               Check the market first
             </Link>
           </div>
+
+          <TokenCA className="mt-6 animate-hero-in [animation-delay:240ms]" />
         </div>
       </div>
     </section>

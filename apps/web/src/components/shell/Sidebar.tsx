@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { CloseIcon } from '@/components/icons';
+import { TokenCA } from '@/components/TokenCA';
 import { SoonBadge, cx } from '@/components/ui';
 import { useConfig } from '@/lib/config';
 import { navItems } from '@/lib/nav';
@@ -102,6 +103,7 @@ export function SidebarContent({
       </nav>
 
       <div className="border-t border-border-soft px-6 py-5">
+        <TokenCA variant="compact" className="mb-4" />
         <p className="t-eyebrow mb-2">Status</p>
         <p className="text-[13px] leading-relaxed text-text-3">
           Non-custodial. Your keys stay in your own wallet — the server can never sign on your

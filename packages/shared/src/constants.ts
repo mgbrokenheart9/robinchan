@@ -28,6 +28,15 @@ export const SYMBOL_NAMES: Record<string, string> = {
   RCHAN: 'Robinchan',
 };
 
+/** $RCHAN on Robinhood Chain (launched 2026-09-28; checked on chain: "Robinchan Perps", 18 decimals). */
+export const RCHAN_TOKEN = {
+  address: '0x9ff3f587b9d46b51d92982011e32fcdba4e531f0',
+  symbol: 'RCHAN',
+  name: 'Robinchan Perps',
+  decimals: 18,
+  chainId: 4663,
+} as const;
+
 export const INDEX_SYMBOLS = ['SPX', 'NDX', 'DJI', 'VIX', 'RCHAN'] as const;
 
 export const INDEX_NAMES: Record<string, string> = {
