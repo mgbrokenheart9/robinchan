@@ -27,14 +27,33 @@ const LOGOS: Record<string, string> = {
   RCHAN: '/img/logo.jpg',
 };
 
-/** Whether `symbol` has a real mark (the rest get a lettered disc). */
-export const hasTickerLogo = (symbol: string): boolean => symbol in LOGOS;
+/**
+ * Commodities have no marks of their own: the agri markets show the good
+ * itself, as Google's Noto Emoji (Apache 2.0, public/img/tickers/agri/NOTICE.md),
+ * inset on a soft disc so they sit with the full-bleed logos beside them.
+ */
+const AGRI_ICONS: Record<string, string> = Object.fromEntries(
+  ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'RICE', 'COTT', 'PALM'].map((s) => [s, `/img/tickers/agri/${s}.svg`]),
+);
+
+/** Whether `symbol` has a mark or an icon (the rest get a lettered disc). */
+export const hasTickerLogo = (symbol: string): boolean => symbol in LOGOS || symbol in AGRI_ICONS;
 
 export function TickerLogo({ symbol, size = 32 }: { symbol: string; size?: number }) {
   const src = LOGOS[symbol];
   // The ring keeps black tiles (Apple, Amazon) from dissolving into the
   // dark theme's background, and white ones (Microsoft, Meta) into light.
   const shape = 'shrink-0 rounded-full ring-1 ring-overlay/10';
+
+  const icon = AGRI_ICONS[symbol];
+  if (icon) {
+    const inner = Math.round(size * 0.68);
+    return (
+      <span aria-hidden className={cx(shape, 'flex items-center justify-center bg-surface-2')} style={{ width: size, height: size }}>
+        <Image src={icon} alt="" width={inner} height={inner} unoptimized />
+      </span>
+    );
+  }
 
   if (!src) {
     return (

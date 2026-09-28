@@ -132,7 +132,7 @@ export function perpMarketStatus(
   if (!perpSessionOpen(def)) {
     return { status: 'closed', statusNote: `Market closed for the weekend. ${def.symbol} trades ${def.hours}.` };
   }
-  if (!mark) return { status: 'closed', statusNote: 'No price from Chainlink yet.' };
+  if (!mark) return { status: 'closed', statusNote: def.reported?.roundFeed ? 'No price yet: one is posted once the exchange trades.' : 'No price from Chainlink yet.' };
   if (!mark.fresh) {
     return {
       status: 'closed',

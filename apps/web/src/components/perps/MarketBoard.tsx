@@ -110,7 +110,7 @@ function MarketChip({ market: m, active, onClick }: { market: PerpMarket; active
         unavailable && !active && 'opacity-60',
       )}
     >
-      {/* Real marks only: commodities have none, so no stand-in either. */}
+      {/* The company's or coin's mark; for a commodity, the good itself. */}
       {hasTickerLogo(m.symbol) ? <TickerLogo symbol={m.symbol} size={26} /> : null}
       <span className="flex flex-col leading-tight">
         <span className="font-mono text-[13px] tracking-[0.04em] text-text">{m.symbol}</span>
