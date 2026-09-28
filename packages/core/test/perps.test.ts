@@ -100,19 +100,24 @@ await setPrice('ETH', 3000);
 /* ------------------------------------------------------------------ */
 
 describe('perps registry', () => {
-  test('every feed is a Chainlink proxy address, listed once', () => {
+  test('every feed is a contract address, listed once — 9 Chainlink proxies and 8 reported agri feeds', () => {
     const feeds = PERP_MARKETS.flatMap((m) => m.contracts.map((c) => c.feedId));
     for (const f of feeds) assert.match(f, /^0x[0-9a-fA-F]{40}$/, f);
     assert.equal(new Set(feeds.map((f) => f.toLowerCase())).size, feeds.length);
-    assert.equal(perpOracleFeeds().length, 9);
+    assert.equal(perpOracleFeeds().length, 17);
   });
 
-  test('agri, SOL and ARB are listed but untradable: agri is coming soon, SOL and ARB have no Chainlink feed', () => {
+  test('agri trades on its reported feeds but palm oil (coming soon); SOL and ARB have no Chainlink feed', () => {
     const agri = PERP_MARKETS.filter((m) => m.category === 'agri');
     assert.deepEqual(agri.map((m) => m.symbol), ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'PALM', 'RICE', 'COTT']);
     for (const m of agri) {
-      assert.match(m.unavailable as string, /^Coming soon\./);
-      assert.ok(perpComingSoon(m), m.symbol);
+      if (m.symbol === 'PALM') {
+        assert.match(m.unavailable as string, /^Coming soon\./);
+        assert.ok(perpComingSoon(m), m.symbol);
+      } else {
+        assert.equal(m.unavailable, undefined, m.symbol);
+        assert.equal(m.contracts[0]?.feedId, m.reported?.roundFeed, `${m.symbol} trades on its reported feed`);
+      }
     }
     for (const m of [perpMarket('SOL')!, perpMarket('ARB')!]) {
       assert.match(m.unavailable as string, /Chainlink has no/);
@@ -120,7 +125,7 @@ describe('perps registry', () => {
     }
     assert.deepEqual(
       tradablePerpMarkets().map((m) => m.symbol),
-      ['BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META'],
+      ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'RICE', 'COTT', 'BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META'],
     );
   });
 
@@ -302,7 +307,7 @@ describe('perps on the paper venue', () => {
     assert.equal(eth.status, 'open');
     near(eth.price as number, 3000);
     assert.equal(eth.maxLeverage, 20);
-    assert.equal(markets.find((m) => m.symbol === 'CORN')?.status, 'unavailable');
+    assert.equal(markets.find((m) => m.symbol === 'PALM')?.status, 'unavailable');
     assert.equal(markets.find((m) => m.symbol === 'GOOGL')?.status, 'closed', 'no price yet');
 
     // A feed quiet past its 24-hour heartbeat (and the contract's 25-hour limit) has stopped.
@@ -384,7 +389,7 @@ describe('perps on the paper venue', () => {
   test('refusals name the problem: no price, no oracle, balance, leverage, flag off', async () => {
     const { user } = await newUser();
     await rejects(core.quotePerpOpen(user, { symbol: 'GOOGL', side: 'long', collateral: 100, leverage: 2 }), 'MARKET_CLOSED');
-    await rejects(core.quotePerpOpen(user, { symbol: 'CORN', side: 'long', collateral: 100, leverage: 2 }), 'NOT_TRADABLE');
+    await rejects(core.quotePerpOpen(user, { symbol: 'PALM', side: 'long', collateral: 100, leverage: 2 }), 'NOT_TRADABLE');
     await rejects(core.quotePerpOpen(user, { symbol: 'ETH', side: 'long', collateral: 20_000, leverage: 2 }), 'INSUFFICIENT_BALANCE');
     await rejects(core.quotePerpOpen(user, { symbol: 'ETH', side: 'long', collateral: 100, leverage: 21 }), 'BAD_REQUEST');
     await rejects(core.quotePerpOpen(user, { symbol: 'NOPE', side: 'long', collateral: 100, leverage: 2 }), 'NOT_FOUND');

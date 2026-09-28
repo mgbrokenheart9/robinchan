@@ -47,13 +47,13 @@ describe('Pyth: the first print at or after a slot', () => {
 });
 
 describe('Pyth agri markets in the registry', () => {
-  test('coffee, cocoa and sugar carry their Pyth months; coming soon until a round feed is deployed', () => {
+  test('coffee, cocoa and sugar carry their Pyth months; coming soon until a round feed of theirs is deployed', () => {
     for (const symbol of ['COFF', 'COCC', 'SUGA']) {
       const def = PERP_MARKETS.find((m) => m.symbol === symbol)!;
       assert.ok(def.pyth && def.pyth.months.length > 0, symbol);
       for (const m of def.pyth.months) assert.match(m.feedId, /^0x[0-9a-f]{64}$/, `${symbol} ${m.pythSymbol}`);
-      if (!def.pyth.roundFeed) assert.ok(perpComingSoon(def) && def.unavailable, `${symbol} is coming soon`);
-      else assert.ok(!def.unavailable && def.contracts[0]?.feedId === def.pyth.roundFeed, `${symbol} trades on its round feed`);
+      if (!def.pyth.roundFeed && !def.reported?.roundFeed) assert.ok(perpComingSoon(def) && def.unavailable, `${symbol} is coming soon`);
+      else assert.ok(!def.unavailable, `${symbol} trades on a round feed`);
     }
     for (const symbol of ['CORN', 'SOYB', 'WEAT', 'PALM', 'RICE', 'COTT']) {
       assert.equal(PERP_MARKETS.find((m) => m.symbol === symbol)?.pyth, undefined, `${symbol} has no Pyth feed`);

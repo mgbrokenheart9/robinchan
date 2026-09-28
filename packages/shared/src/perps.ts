@@ -204,8 +204,24 @@ function agriMarket(
 }
 
 /** A reported feed, not deployed yet, over these Yahoo Finance months. */
+/**
+ * The deployed ReportedRoundFeeds on Robinhood Chain mainnet, by description
+ * (contracts/deployments/4663-reported.json, 2026-09-28).
+ */
+const REPORTED_ROUND_FEEDS: Record<string, `0x${string}`> = {
+  'Robinchan Corn / USD': '0x08c1a439ad2fdb4e863eb8e0d76259482a066e80',
+  'Robinchan Soybeans / USD': '0xc95854110b452d5615e60f86620033a1819bed77',
+  'Robinchan Wheat / USD': '0xbfc888795a3e18b3459d282da0e34d04825c1d06',
+  'Robinchan Arabica Coffee / USD': '0x9d27d4f9d1dc45ccf10c63ff67f8214c14fe881e',
+  'Robinchan Cocoa / USD': '0xc12c607d8cda0399b041afe5308022fec844f7e6',
+  'Robinchan Raw Sugar / USD': '0x250973800da6531dd0f3bc9d682b6ec1cc532d84',
+  'Robinchan Rough Rice / USD': '0x891c8693c02ada3f1a8161e02d44ee38c93927d3',
+  'Robinchan Cotton / USD': '0x94a9fd7f61f58bb33711a3c9fc8c09a523ce46f0',
+};
+
+/** A reported feed over these Yahoo Finance months — live once deployed. */
 const yahoo = (description: string, months: PerpReportedFeed['months']): PerpReportedFeed => ({
-  roundFeed: null,
+  roundFeed: REPORTED_ROUND_FEEDS[description] ?? null,
   description,
   months,
 });

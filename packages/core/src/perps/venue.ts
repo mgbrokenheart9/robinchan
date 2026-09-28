@@ -18,7 +18,9 @@ export async function perpVenueInfo(): Promise<PerpVenueInfo> {
   const cs = contracts ? await chainState({ maxAgeSec: 60 }).catch(() => null) : null;
   const block = Number(process.env.AGRI_DEPLOY_BLOCK?.trim());
   const feeds = cs
-    ? Object.values(cs.markets).map((m) => ({ symbol: m.symbol, feed: m.feed, description: perpMarket(m.symbol)?.contracts[0]?.oracleSymbol ?? m.symbol }))
+    ? Object.values(cs.markets)
+        .filter((m) => m.listed)
+        .map((m) => ({ symbol: m.symbol, feed: m.feed, description: perpMarket(m.symbol)?.contracts[0]?.oracleSymbol ?? m.symbol }))
     : perpOracleFeeds().map((f) => ({ symbol: f.symbol, feed: f.feed, description: f.oracleSymbol }));
   return {
     venue,

@@ -118,7 +118,7 @@ export function perpMarketStatus(
       status: 'unavailable',
       statusNote:
         def.category === 'agri'
-          ? `Coming soon. ${def.name} perps open once its Pyth feed is listed on the perps contract.`
+          ? `Coming soon. ${def.name} perps open once its price feed is listed on the perps contract.`
           : `${def.symbol} isn't listed on the perps contract yet.`,
     };
   }

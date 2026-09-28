@@ -1,0 +1,48 @@
+{
+  "chainId": 4663,
+  "reporter": "0x6c079ff20b77fbbc89fb5c90c5f43cf24166d7d4",
+  "owner": "0x6c079ff20b77fbbc89fb5c90c5f43cf24166d7d4",
+  "feeds": [
+    {
+      "symbol": "CORN",
+      "feed": "0x08c1a439ad2fdb4e863eb8e0d76259482a066e80",
+      "month": "ZCZ26.CBT"
+    },
+    {
+      "symbol": "SOYB",
+      "feed": "0xc95854110b452d5615e60f86620033a1819bed77",
+      "month": "ZSX26.CBT"
+    },
+    {
+      "symbol": "WEAT",
+      "feed": "0xbfc888795a3e18b3459d282da0e34d04825c1d06",
+      "month": "ZWZ26.CBT"
+    },
+    {
+      "symbol": "COFF",
+      "feed": "0x9d27d4f9d1dc45ccf10c63ff67f8214c14fe881e",
+      "month": "KCZ26.NYB"
+    },
+    {
+      "symbol": "COCC",
+      "feed": "0xc12c607d8cda0399b041afe5308022fec844f7e6",
+      "month": "CCZ26.NYB"
+    },
+    {
+      "symbol": "SUGA",
+      "feed": "0x250973800da6531dd0f3bc9d682b6ec1cc532d84",
+      "month": "SBH27.NYB"
+    },
+    {
+      "symbol": "RICE",
+      "feed": "0x891c8693c02ada3f1a8161e02d44ee38c93927d3",
+      "month": "ZRX26.CBT"
+    },
+    {
+      "symbol": "COTT",
+      "feed": "0x94a9fd7f61f58bb33711a3c9fc8c09a523ce46f0",
+      "month": "CTZ26.NYB"
+    }
+  ],
+  "deployedAt": "2026-09-28T04:21:34.660Z"
+}

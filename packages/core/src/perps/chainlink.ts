@@ -59,15 +59,21 @@ export async function readOraclePrices(
   client: PublicClient | null = oracleClient(),
 ): Promise<OraclePrice[]> {
   if (!client || !feeds.length) return [];
+  // Each feed on its own: one that can't be read — a new round feed with no
+  // round yet reverts — leaves its market without a price, not every market.
   const rounds = await Promise.all(
     feeds.map(async ({ symbol, feed }) => {
-      const [roundId, answer, , updatedAt] = await client.readContract({ address: feed, abi: CHAINLINK_FEED_ABI, functionName: 'latestRoundData' });
-      const decimals = await decimalsOf(client, feed);
-      return { symbol, feed, roundId, answer, updatedAt, decimals };
+      try {
+        const [roundId, answer, , updatedAt] = await client.readContract({ address: feed, abi: CHAINLINK_FEED_ABI, functionName: 'latestRoundData' });
+        const decimals = await decimalsOf(client, feed);
+        return { symbol, feed, roundId, answer, updatedAt, decimals };
+      } catch {
+        return null;
+      }
     }),
   );
   return rounds
-    .filter((r) => r.answer > 0n && r.updatedAt > 0n)
+    .filter((r): r is NonNullable<typeof r> => r !== null && r.answer > 0n && r.updatedAt > 0n)
     .map((r) => ({
       symbol: r.symbol,
       feed: r.feed.toLowerCase() as Hex,

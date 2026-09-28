@@ -89,15 +89,19 @@ export function pythFeedsForDeploy(): DeployPythFeed[] {
 }
 
 export function perpMarketsForDeploy(): DeployMarket[] {
-  return tradablePerpMarkets().map((m) => {
-    const feed = m.contracts[0]!;
-    return {
-      symbol: m.symbol,
-      maxLeverage: m.maxLeverage,
-      maxOiUsd: 1_000_000,
-      fundingRatePerHour: BigInt(Math.round(DEFAULT_FUNDING_RATE_PER_HOUR * 1e18)).toString(),
-      feed: { proxy: feed.feedId, description: feed.oracleSymbol },
-      mockPrice: MOCK_PRICES[m.symbol] ?? 100,
-    };
-  });
+  // The Chainlink markets: the agri ones are listed on their round feeds by
+  // contracts/scripts/list-agri-markets.ts, not by the stack's deploy.
+  return tradablePerpMarkets()
+    .filter((m) => !m.reported && !m.pyth)
+    .map((m) => {
+      const feed = m.contracts[0]!;
+      return {
+        symbol: m.symbol,
+        maxLeverage: m.maxLeverage,
+        maxOiUsd: 1_000_000,
+        fundingRatePerHour: BigInt(Math.round(DEFAULT_FUNDING_RATE_PER_HOUR * 1e18)).toString(),
+        feed: { proxy: feed.feedId, description: feed.oracleSymbol },
+        mockPrice: MOCK_PRICES[m.symbol] ?? 100,
+      };
+    });
 }
