@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import type { OrderQuote } from '@robinchan/shared';
+import { shortAddress } from '@robinchan/shared';
 
 import { Avatar } from '@/components/Avatar';
 import { CloseIcon, SendIcon } from '@/components/icons';
@@ -34,6 +35,8 @@ const PAGE_LABEL: Record<string, string> = {
   heat: 'Heat',
   portfolio: 'Portfolio',
   perps: 'Perps',
+  gap: 'Gap',
+  check: 'Token Check',
 };
 
 export function CompanionDock() {
@@ -86,6 +89,8 @@ function Panel() {
   };
 
   const where = PAGE_LABEL[c.context.page] ?? c.context.page;
+  // On Token Check the "symbol" is the token's address.
+  const subject = c.context.symbol ? (c.context.symbol.startsWith('0x') ? shortAddress(c.context.symbol) : c.context.symbol) : null;
 
   return (
     <section
@@ -98,7 +103,7 @@ function Panel() {
           <p className="font-display text-[15px] font-semibold">Robinchan</p>
           <p className="truncate font-mono text-[11px] text-text-3">
             sees: {where}
-            {c.context.symbol ? ` · ${c.context.symbol}` : ''}
+            {subject ? ` · ${subject}` : ''}
           </p>
         </div>
         <Link href="/robinchan" className="rounded-full px-2.5 py-1 text-[12px] text-text-3 transition-colors hover:text-text">
@@ -157,7 +162,7 @@ function Panel() {
           onChange={(e) => setDraft(e.target.value)}
           maxLength={CHAT_MAX_MESSAGE}
           autoComplete="off"
-          placeholder={`Ask about ${c.context.symbol ?? where}…`}
+          placeholder={`Ask about ${subject ?? where}…`}
           className="min-h-[44px] min-w-0 flex-1 rounded-full border border-border bg-surface-2 px-4 text-[14px] text-text placeholder:text-text-3 focus:border-text-3 focus:outline-none"
         />
         <button

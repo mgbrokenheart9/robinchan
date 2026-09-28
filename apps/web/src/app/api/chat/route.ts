@@ -61,10 +61,11 @@ const body = z.object({
   voice: z.boolean().default(true),
   context: z
     .object({
-      page: z.enum(['home', 'robinchan', 'market', 'heat', 'portfolio', 'perps']),
+      page: z.enum(['home', 'robinchan', 'market', 'heat', 'portfolio', 'perps', 'gap', 'check']),
+      // A ticker — or, on Token Check, the token's address.
       symbol: z
         .string()
-        .regex(/^[A-Za-z0-9.-]{1,12}$/)
+        .regex(/^(?:[A-Za-z0-9.-]{1,12}|0x[0-9a-fA-F]{40})$/)
         .nullable()
         .optional(),
     })

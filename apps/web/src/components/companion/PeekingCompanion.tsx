@@ -11,7 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import type { HeatScore, MarketIndex, PerpMarket } from '@robinchan/shared';
+import type { GapBoard, HeatScore, MarketIndex, PerpMarket } from '@robinchan/shared';
 import { formatPrice } from '@robinchan/shared';
 
 import { VOICE_STORAGE_KEY, revealer } from '@/components/chat/useCompanionChat';
@@ -149,6 +149,42 @@ const PAGES: Record<
       ask: 'How do I read my portfolio page?',
     },
   },
+  '/gap': {
+    // The board's gap column is its right edge: narrower, she'd sit on it.
+    minWidth: 1600,
+    fallback: {
+      title: 'Chain vs. Wall Street',
+      text: 'Stock tokens trade around the clock, the stocks don’t. This board shows how far apart they drift while Wall Street is shut.',
+      ask: 'What does the gap tell me?',
+    },
+    load: async () => {
+      const env = await getEnvelope<GapBoard | null>('/api/gap', null);
+      const board = env.data;
+      const w = board?.summary.widest;
+      if (!board || !w) return null;
+      const off = `${Math.abs(w.gapPct).toFixed(2)}% ${w.gapPct >= 0 ? 'above' : 'below'}`;
+      return board.session.closed
+        ? {
+            title: 'Weekend gap',
+            text: `Wall Street’s closed, the chain isn’t. ${w.symbol} trades ${off} its close, the widest gap right now.`,
+            ask: `Why is ${w.symbol} ${w.gapPct >= 0 ? 'above' : 'below'} its close on chain?`,
+          }
+        : {
+            title: 'Gap watch',
+            text: `Tokens and their stocks sit about ${board.summary.typicalGapPct?.toFixed(2) ?? '0'}% apart. ${w.symbol} is furthest off, ${off}.`,
+            ask: `Why is ${w.symbol} ${w.gapPct >= 0 ? 'above' : 'below'} its stock price?`,
+          };
+    },
+  },
+  '/check': {
+    // The verdict sits at the report's right edge.
+    minWidth: 1600,
+    fallback: {
+      title: 'Is it legit?',
+      text: 'Paste any token address. I’ll read its contract and pools, then try a pretend buy and sell to see if it can really be sold.',
+      ask: 'What does Token Check look at?',
+    },
+  },
 };
 
 function pageFor(pathname: string | null): string | null {
@@ -220,7 +256,7 @@ const FRAME =
   'pointer-events-none fixed right-0 h-[570px] w-[250px] min-[1600px]:h-[630px] min-[1600px]:w-[285px] min-[1800px]:h-[640px] min-[1800px]:w-[320px]';
 
 /** Pages where `<CompanionDock>` renders its chat panel. */
-const DOCKED = new Set(['/heat', '/perps', '/portfolio']);
+const DOCKED = new Set(['/heat', '/perps', '/portfolio', '/gap', '/check']);
 
 export function PeekingCompanion() {
   const companion = useCompanion();

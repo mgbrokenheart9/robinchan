@@ -157,6 +157,7 @@ export const POLL_MS = {
   candles: 30_000,
   orders: 10_000,
   portfolio: 60_000,
+  gap: 60_000,
 } as const;
 
 /* ---------- heat (Heat §6) ---------- */

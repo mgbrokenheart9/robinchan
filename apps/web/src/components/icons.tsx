@@ -7,30 +7,43 @@ import {
   Briefcase,
   ChartCandlestick,
   ChartLine,
+  CircleCheck,
+  ClipboardPaste,
   Clock,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Copy,
+  Droplets,
   ExternalLink,
   Flame,
   Home,
   Image as ImageGlyph,
+  Info,
   KeyRound,
   LayoutGrid,
   LineChart,
   Lock,
   Menu,
   MessageSquareText,
+  OctagonAlert,
   Play,
   Moon,
   RotateCw,
+  Search,
   SendHorizontal,
+  Share2,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestionMark,
+  ShieldX,
   Smile,
   Sparkles,
   Star,
   Sun,
+  Sunrise,
+  TriangleAlert,
   Volume2,
   VolumeX,
   Wallet,
@@ -62,6 +75,8 @@ export const TradeIcon = wrap(ArrowLeftRight, 18);
 export const PerpsIcon = wrap(ChartCandlestick, 18);
 export const HeatIcon = wrap(Flame, 18);
 export const PortfolioIcon = wrap(Briefcase, 18);
+export const GapIcon = wrap(Sunrise, 18);
+export const CheckTokenIcon = wrap(ShieldCheck, 18);
 export const MenuIcon = wrap(Menu, 20);
 export const CloseIcon = wrap(X, 20);
 export const ArrowRightIcon = wrap(ArrowRight, 16);
@@ -98,6 +113,21 @@ export const AgriIcon = wrap(Wheat, 14);
 export const CryptoIcon = wrap(Bitcoin, 14);
 export const StocksIcon = wrap(ChartLine, 14);
 export const ClockIcon = wrap(Clock, 14);
+
+/* Token Check */
+export const SearchIcon = wrap(Search, 18);
+export const PasteIcon = wrap(ClipboardPaste, 16);
+export const ShareIcon = wrap(Share2, 14);
+export const LiquidityIcon = wrap(Droplets, 14);
+export const VerdictOfficialIcon = wrap(ShieldCheck, 22);
+export const VerdictCleanIcon = wrap(ShieldCheck, 22);
+export const VerdictCautionIcon = wrap(ShieldAlert, 22);
+export const VerdictDangerIcon = wrap(ShieldX, 22);
+export const VerdictUnknownIcon = wrap(ShieldQuestionMark, 22);
+export const FindingGoodIcon = wrap(CircleCheck, 16);
+export const FindingInfoIcon = wrap(Info, 16);
+export const FindingWarnIcon = wrap(TriangleAlert, 16);
+export const FindingDangerIcon = wrap(OctagonAlert, 16);
 
 // Home feature-card glyphs (design.md §10) — not used in the dashboard.
 export const GridIcon = wrap(LayoutGrid, 20);

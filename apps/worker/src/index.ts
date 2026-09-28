@@ -16,6 +16,7 @@ const { perpPriceIntervalMs } = await import('@robinchan/core');
 const { runSnapshots, msUntilMidnightUtc } = await import('./jobs/snapshots.js');
 const { runCalendar } = await import('./jobs/calendar.js');
 const { runChannels, runClips } = await import('./jobs/media.js');
+const { runGap } = await import('./jobs/gap.js');
 const { log } = await import('./lib/log.js');
 const { describeError } = await import('./lib/describe-error.js');
 
@@ -59,6 +60,9 @@ const JOBS: Record<string, Job> = {
   pythRounds: { name: 'pyth-rounds', everyMs: 10_000, run: runPythFeeds },
   // The agri prices the operator posts, from Yahoo Finance quotes.
   reportedRounds: { name: 'agri-prices', everyMs: 30_000, run: runReportedFeeds },
+  // Stock tokens on chain against their stocks (the Gap board): DexScreener
+  // pools every run, Finnhub's reference prices only as often as they move.
+  gap: { name: 'gap', everyMs: 2 * 60_000, run: runGap },
   channels: { name: 'channels', everyMs: 10 * 60_000, run: runChannels },
   // 15 min, not 5: new uploads from these channels land a few times an
   // hour at most, and each run spends YouTube quota (see providers/youtube.ts).
@@ -139,6 +143,7 @@ async function main(): Promise<void> {
   await safeRun(JOBS.candles as Job);
   await safeRun(JOBS.calendar as Job);
   await safeRun(JOBS.heat as Job);
+  await safeRun(JOBS.gap as Job);
   await safeRun(JOBS.orders as Job);
   await safeRun(JOBS.perpPrices as Job);
   await safeRun(JOBS.perps as Job);

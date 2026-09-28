@@ -13,6 +13,8 @@ import { cx } from '@/components/ui';
 const LINKS = [
   { href: '/robinchan', label: 'Robinchan' },
   { href: '/market', label: 'Market' },
+  { href: '/gap', label: 'Gap' },
+  { href: '/check', label: 'Token Check' },
 ];
 
 /** Icon buttons inside the island share the links' quiet, chrome-less look. */

@@ -1,6 +1,8 @@
 import type { ComponentType, SVGProps } from 'react';
 
 import {
+  CheckTokenIcon,
+  GapIcon,
   HeatIcon,
   HomeIcon,
   MarketIcon,
@@ -55,6 +57,20 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Heat',
     hint: "What's hot",
     icon: HeatIcon,
+    enabled: true,
+  },
+  {
+    href: '/gap',
+    label: 'Gap',
+    hint: 'Chain vs. NYSE',
+    icon: GapIcon,
+    enabled: true,
+  },
+  {
+    href: '/check',
+    label: 'Token Check',
+    hint: 'Any token',
+    icon: CheckTokenIcon,
     enabled: true,
   },
   {

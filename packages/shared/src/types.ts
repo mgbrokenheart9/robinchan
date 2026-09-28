@@ -541,7 +541,7 @@ export type PortfolioHistory = {
 
 /* ---------- companion ---------- */
 
-export type CompanionPage = 'home' | 'robinchan' | 'market' | 'heat' | 'portfolio' | 'perps';
+export type CompanionPage = 'home' | 'robinchan' | 'market' | 'heat' | 'portfolio' | 'perps' | 'gap' | 'check';
 
 /** Page context sent with each chat message as metadata — one chat, one history. */
 export type PageContext = {

@@ -1,7 +1,8 @@
 import 'server-only';
 
-import type { PageContext } from '@robinchan/shared';
-import { formatPct, formatPriceSmart, perpMarket } from '@robinchan/shared';
+import type { GapBoard, PageContext, TokenCheck } from '@robinchan/shared';
+import { CHECK_VERDICT_LABEL, formatPct, formatPriceSmart, perpMarket } from '@robinchan/shared';
+import { cacheKey, getCache } from '@robinchan/store';
 import {
   HeatAccessError,
   buildHeatBoard,
@@ -31,6 +32,8 @@ export async function pageContextBlock(ctx: PageContext | undefined, session: Se
     else if (ctx.page === 'perps') await perpsLines(ctx.symbol ?? null, session, lines);
     else if (ctx.page === 'portfolio') await portfolioLines(session, lines);
     else if (ctx.page === 'market') marketLines(lines);
+    else if (ctx.page === 'gap') await gapLines(ctx.symbol ?? null, lines);
+    else if (ctx.page === 'check') await checkLines(ctx.symbol ?? null, lines);
     else return null;
   } catch (err) {
     console.warn(`[chat] page context for ${ctx.page} unavailable: ${(err as Error).message}`);
@@ -121,6 +124,46 @@ function marketLines(lines: string[]): void {
     'Page: Market — the index strip (S&P 500 through SPY, Nasdaq 100 through QQQ, Bitcoin and Ether, all from Chainlink, and ' +
       '$RCHAN), the news tape and feed, live TV and upcoming catalysts. The figures are in <market_data>.',
   );
+}
+
+async function gapLines(symbol: string | null, lines: string[]): Promise<void> {
+  lines.push(
+    "Page: Gap — Robinhood's stock tokens trade on Robinhood Chain around the clock; each row compares a token's price across " +
+      "its pools with its stock's own regular-session price (live while Wall Street is open, its last close otherwise). " +
+      'A gap is what on-chain traders are pricing in while the stock itself is shut, not a prediction of the open. Never advise.',
+  );
+  const board = await getCache().get<GapBoard>(cacheKey('gap', 'board'));
+  if (!board) {
+    lines.push('The board has no data yet.');
+    return;
+  }
+  lines.push(`US market: ${board.session.label}. ${board.read}`);
+  const pick = symbol ? board.rows.find((r) => r.symbol === symbol.toUpperCase()) : null;
+  for (const r of pick ? [pick] : board.rows.slice(0, 6)) {
+    lines.push(
+      `${r.symbol} (${r.name}): token $${formatPriceSmart(r.onchain)}, stock $${formatPriceSmart(r.reference)}, gap ${formatPct(r.gapPct)}, ` +
+        `pool liquidity $${Math.round(r.liquidityUsd).toLocaleString('en-US')}.`,
+    );
+  }
+  if (pick) lines.push(`The user has the ${pick.symbol} row open.`);
+}
+
+async function checkLines(address: string | null, lines: string[]): Promise<void> {
+  lines.push(
+    'Page: Token Check — the user pastes any token address on Robinhood Chain; Robinchan reads its contract, its pools and a ' +
+      'simulated buy and sell, and reports what she finds. Explain findings; never say whether to buy or sell.',
+  );
+  if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    lines.push('No token is open yet.');
+    return;
+  }
+  const check = await getCache().get<TokenCheck>(cacheKey('check', address.toLowerCase()));
+  if (!check?.token) {
+    lines.push(`The user is looking at ${address}, which isn't a readable token.`);
+    return;
+  }
+  lines.push(`Open token: ${check.token.name} (${check.token.symbol}), ${address}. Verdict: ${CHECK_VERDICT_LABEL[check.verdict]}. ${check.headline}`);
+  for (const f of check.findings.slice(0, 8)) lines.push(`Finding (${f.severity}): ${f.title} — ${f.detail}`);
 }
 
 async function portfolioLines(session: Session | null, lines: string[]): Promise<void> {

@@ -4,6 +4,7 @@ import { getRateLimiter } from '@robinchan/store';
 
 import { sessionFromCookieHeader } from '../auth/session';
 import { api } from './app';
+import { clientIpFrom } from './ip';
 
 /**
  * HTTP edge of the API, served by `app/api/[...path]/route.ts`. Carries over
@@ -35,16 +36,9 @@ function allowedOrigins(): string[] {
   return (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(',').map((s) => s.trim());
 }
 
-/**
- * The rate-limit key. Vercel overwrites `x-forwarded-for` with the real
- * client address, and a reverse proxy appends the address it saw — so the
- * right-most entry is the one a client can't forge by sending its own
- * header. (Next's own server only fills it from the socket when it's absent.)
- */
+/** The rate-limit key for a request — see `clientIpFrom`. */
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const nearest = forwarded?.split(',').at(-1)?.trim();
-  return nearest || request.headers.get('x-real-ip') || 'unknown';
+  return clientIpFrom(request.headers);
 }
 
 /**

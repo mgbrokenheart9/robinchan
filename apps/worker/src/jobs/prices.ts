@@ -66,7 +66,7 @@ const STRIP_NAMES: Record<string, string> = Object.fromEntries(MARKET_STRIP.map(
  * for their indices; their feeds follow US hours, so they sit still over the
  * weekend.
  */
-const STRIP_FEEDS: Array<{ symbol: string; feed: `0x${string}` }> = [
+export const STRIP_FEEDS: Array<{ symbol: string; feed: `0x${string}` }> = [
   { symbol: 'SPY', feed: '0x319724394D3A0e3669269846abE664Cd621f9f6A' },
   { symbol: 'QQQ', feed: '0x80901d846d5D7B030F26B480776EE3b29374C2ae' },
   { symbol: 'BTC', feed: '0xa2c5184bF03d373Dc9dE4876eb4Bce595B460251' },

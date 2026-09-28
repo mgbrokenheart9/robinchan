@@ -10,8 +10,10 @@ Ethereum, tiers read on the server, and the order pipeline Robinchan's chat uses
 and US stocks, priced by Chainlink Data Feeds on Robinhood Chain, with its own contracts in
 `contracts/` (the brief's agricultural markets are listed, but Chainlink has no feed for them
 there yet). Perps sits behind `FEATURE_PERPS` and spot trading behind `FEATURE_TRADING`, both
-off by default. See [Heat, Portfolio, Trade](#heat-portfolio-trade), [Perps](#perps) and
-[Scope boundaries](#scope-boundaries).
+off by default. **Gap** and **Token Check** are public: Robinhood's stock tokens on chain against
+their stocks, and any token's contract, pools and a simulated sell. See
+[Heat, Portfolio, Trade](#heat-portfolio-trade), [Perps](#perps),
+[Gap and Token Check](#gap-and-token-check) and [Scope boundaries](#scope-boundaries).
 
 ---
 
@@ -128,6 +130,10 @@ and if a provider goes down, the last known data still gets served with a `stale
 | `apps/web` (UI + API) | Vercel | Root directory `apps/web`; Neon connected via Storage |
 | `apps/worker` | Railway | `SERVICE_TARGET=worker`, same `DATABASE_URL` |
 | Database | Vercel Postgres (Neon) | |
+
+The Railway service's build settings are code, in `railway.json`: the build is `npm run build`,
+which skips itself with `SERVICE_TARGET=worker` (the worker runs from source on `tsx`), and a push
+redeploys the worker when it touches `apps/worker/` or `packages/`, which the worker imports.
 
 The worker stays a long-running process on purpose (brief §16): polling every 20 seconds in a
 serverless function would be expensive and flaky. It keeps the Neon compute awake around the
@@ -383,6 +389,64 @@ running and pausing markets from a Safe — is [`contracts/MAINNET.md`](contract
   interest (today the pool earns only fees and traders' losses), and trading from the chat (a
   later phase in the brief).
 - A regulatory answer for leveraged derivatives on stocks.
+
+---
+
+## Gap and Token Check
+
+Two public pages, no wallet or feature flag needed, both read from Robinhood Chain mainnet
+(`PERPS_ORACLE_RPC_URL`, dRPC by default) whatever chain the wallet features point at.
+
+### Gap (`/gap`)
+
+Robinhood's stock tokens trade on chain around the clock; the stocks don't. Each row sets a
+token's on-chain price against its stock's own:
+
+- **On chain**: the token's pools from DexScreener (`token-pairs/v1/robinhood`), weighted by
+  liquidity, leaving out pools under $5K or more than 15% from the median.
+- **Stock**: the regular-session price from Yahoo Finance's `spark` endpoint (20 symbols a
+  request) — live while Wall Street is open, its last close otherwise. Robinhood Chain's Chainlink
+  feed fills in when Yahoo can't be reached. Not Finnhub: its free plan's 60 calls a minute are
+  already spent on the Market strip, and 41 more symbols returned 429s.
+- **The clock**: `usSession` in `packages/shared/src/gap.ts` — regular, pre-market, after
+  hours, overnight (Robinhood's 24/5), weekend (Friday 20:00 to Sunday 20:00 New York) and NYSE
+  holidays, which are listed through 2027 and need extending before 2028.
+
+The worker's `gap` job runs every 2 minutes (`apps/worker/src/jobs/gap.ts`) and writes the board
+plus one point of history per 10 minutes, kept four days. `GET /api/gap` serves the board and
+`GET /api/gap/:symbol` a row's last 72 hours. Robinchan's line on it is written from the numbers,
+never generated. The 42 stock tokens are in `STOCK_TOKENS`, each confirmed on chain; SpaceX (SPCX)
+is a private company and stays off the board.
+
+### Token Check (`/check`, `/check/<address>`)
+
+Paste any token address, or type a stock ticker. `runTokenCheck` (`packages/core/src/check/`)
+reads:
+
+- **The contract**: owner (renounced, none, active), EIP-1967 / beacon proxies, minimal-proxy
+  clones (EIP-1167, Solady's and EIP-7511's variants), and owner-only powers found as function
+  selectors in the bytecode: mint, blacklist, pause, tax changes, wallet limits, a trading switch,
+  admin roles.
+- **The sell test**: `eth_simulateV1` on a copy of the latest block. Tokens are sent out of the pool
+  holding the most of them (a v2/v3 pool, or Uniswap v4's PoolManager at `0x8366…0951`) to a
+  fresh address, then sent back. A revert or a tax shows up in the balances. Nothing is signed.
+- **Impersonation**: a token that borrows an official stock ticker plus Robinhood's or the
+  company's name (e.g. "NVIDIA Robinhood Coin") is a red flag; the ticker alone is a caution.
+  Look-alikes of $RCHAN, USDG and WETH are flagged too.
+- **The market and supply**: liquidity, age, buys against sells, and the share in pools, burned,
+  with the owner and in the contract itself.
+
+It ends in a verdict (official, no red flags, be careful, high risk, can't tell) and Robinchan's
+line, both from rules in `judge.ts`, with every finding's wording checked against the advice
+guard in the tests. Unlike the market routes this one reads on the request, since any address
+can be asked about. A result is reused for 2 minutes, one address asked twice at once runs once,
+and each IP gets 10 fresh checks a minute (`RATE_LIMIT_CHECK`). `GET /api/check/recent` lists
+the last 12 tokens checked; wallets never go on it. `?peek=1` answers only from what's already
+been checked, so a shared link never makes the server read the chain.
+
+What it can't see without an indexer (Blockscout sits behind Cloudflare, and dRPC's free plan
+allows `eth_getLogs` over about 100 blocks): the top holders, and who holds a contract's admin
+roles.
 
 ---
 

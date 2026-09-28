@@ -97,6 +97,8 @@ const nextConfig = {
       { protocol: 'https', hostname: 'data.bloomberglp.com' },
       // Highlight clip thumbnails (`ClipCard`).
       { protocol: 'https', hostname: 'i.ytimg.com', pathname: '/vi/**' },
+      // Token logos on Token Check, as DexScreener lists them.
+      { protocol: 'https', hostname: 'cdn.dexscreener.com', pathname: '/cms/images/**' },
     ],
   },
   async headers() {
