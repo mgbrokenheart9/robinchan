@@ -1,6 +1,6 @@
 # Robinchan — Design Direction
 
-**Companion-forward** · character: Zundamon (VOICEVOX Live2D sample model) · derived from `robinchan-dev-brief.md` · 21 September 2026
+**Companion-forward** · character: Zundamon (VOICEVOX Live2D sample model) · 21 September 2026
 
 This file translates the dev brief's design tokens and layout rules into a concrete visual direction for implementation. It is a working spec, not the final artboards — when Bix shares the canvas (`Main.dc.html`, `Character.dc.html`, `Market.dc.html`, `Mobile.dc.html`), those are the source of truth for exact spacing/sizing. This doc governs everything the artboards don't pin down: motion, personality, and how the character's presence should read across the whole shell, not just the `/robinchan` page.
 

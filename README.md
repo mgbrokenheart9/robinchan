@@ -441,9 +441,9 @@ mainnet, including a rehearsal on a copy of it and running markets from a Safe, 
 | `PERPS_FUNDING_RATES`, `PERPS_FEE_BPS`, `PERPS_CLOSE_FEE_BPS`, `PERPS_MAX_OI_USD`, `PERPS_FAUCET_USDC` | The paper venue's copies of what the contract holds on chain |
 
 <details>
-<summary><strong>Where the build differs from the original perps brief</strong></summary>
+<summary><strong>Design decisions: what changed from the first perps plan</strong></summary>
 
-| Brief | Built | Why |
+| First plan | Built | Why |
 | --- | --- | --- |
 | Pyth price feeds | Chainlink Data Feeds on Robinhood Chain | Pyth's commodity and equity data needs a paid plan; Chainlink's feeds there are free to read |
 | 50x on every market | 20x crypto, 5x stocks | The feeds' 0.5% deviation lag, and weekend gaps |
@@ -555,8 +555,6 @@ then, treat this asset as a placeholder. A copy of the original notice is at
 
 | Document | What's in it |
 | --- | --- |
-| [`robinchan-dev-brief.md`](robinchan-dev-brief.md) | The main product brief: pages, data, tiers, milestones |
-| [`robinchan-agri-perps-brief.md`](robinchan-agri-perps-brief.md) | The perps brief that replaced the Trade page |
 | [`design.md`](design.md) | Design direction: tokens, light and dark themes, motion, the character's role |
 | [`contracts/MAINNET.md`](contracts/MAINNET.md) | The runbook for deploying and operating perps on Robinhood Chain mainnet |
 
