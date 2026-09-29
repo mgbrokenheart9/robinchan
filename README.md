@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="apps/web/public/img/logo.jpg" alt="Robinchan" width="132" />
+  <img src="assets/banner.jpg" alt="Robinchan" width="100%" />
 </p>
-
-<h1 align="center">Robinchan</h1>
 
 <p align="center">
   <strong>A Live2D character companion for tokenized stocks on Robinhood Chain.</strong><br />
