@@ -436,6 +436,13 @@ describe('perps on the paper venue', () => {
     await rejects(core.quotePerpOpen(user, { symbol: 'ETH', side: 'long', collateral: 20_000, leverage: 2 }), 'INSUFFICIENT_BALANCE');
     await rejects(core.quotePerpOpen(user, { symbol: 'ETH', side: 'long', collateral: 100, leverage: 21 }), 'BAD_REQUEST');
     await rejects(core.quotePerpOpen(user, { symbol: 'NOPE', side: 'long', collateral: 100, leverage: 2 }), 'NOT_FOUND');
+    // RH Tokens: 5× at most, $10k a position at most, and a 3% fill bound for an order that waits a quarter-hour.
+    await setPrice('CASHCAT', 0.17);
+    await rejects(core.quotePerpOpen(user, { symbol: 'CASHCAT', side: 'long', collateral: 100, leverage: 6 }), 'BAD_REQUEST');
+    await rejects(core.quotePerpOpen(user, { symbol: 'CASHCAT', side: 'long', collateral: 2_001, leverage: 5 }), 'BAD_REQUEST');
+    const cat = await core.quotePerpOpen(user, { symbol: 'CASHCAT', side: 'long', collateral: 100, leverage: 5 });
+    assert.equal(cat.slippageBps, 300);
+    near(cat.acceptablePrice, 0.17 * 1.03);
     // Paper orders fill at once: nothing ever waits, so nothing can be taken back.
     assert.deepEqual(await core.perpWaitingOrders(user), []);
     process.env.FEATURE_PERPS = 'false';

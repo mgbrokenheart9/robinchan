@@ -68,6 +68,8 @@ export type PerpMarketDef = {
   maxPriceAgeSec?: number;
   /** The largest one position may be (its size), USD. Unset: only the open-interest cap. */
   maxPositionUsd?: number;
+  /** The least fill-price bound this market's quotes carry, bps (the venue's own may be wider). */
+  minSlippageBps?: number;
 };
 
 /**
@@ -98,6 +100,13 @@ export const RH_TOKEN_MAX_LEVERAGE = 5;
 export const RH_TOKEN_MAX_POSITION_USD = 10_000;
 /** RH Tokens brief: a token is listed only while the pool its price comes from holds this much, USD (both sides). */
 export const RH_TOKEN_MIN_LIQUIDITY_USD = 500_000;
+/**
+ * An RH Token order fills on the first 15-minute average that starts after
+ * it — about 16 minutes on — and these tokens move a few percent an hour: a
+ * 1.5% bound would cancel orders the trader would have taken. 3% leaves
+ * room for that, and no more.
+ */
+export const RH_TOKEN_SLIPPAGE_BPS = 300;
 /** Each round's average spans 15 minutes (TwapRoundFeed's `window`). */
 export const TWAP_WINDOW_SEC = 900;
 /** RH Tokens brief's circuit breaker: an hour without a fresh average and the market stops (TwapRoundFeed's `maxStaleness`). */
@@ -318,6 +327,7 @@ function rhToken(
     schedule: '24/7',
     maxPriceAgeSec: TWAP_MAX_AGE_SEC,
     maxPositionUsd: RH_TOKEN_MAX_POSITION_USD,
+    minSlippageBps: RH_TOKEN_SLIPPAGE_BPS,
     twap,
     ...(live ? {} : { unavailable: `Coming soon. ${waiting}` }),
   };

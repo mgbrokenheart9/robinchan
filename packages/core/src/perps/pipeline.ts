@@ -269,7 +269,7 @@ export async function quotePerpOpen(
     }
   };
 
-  const slippageBps = perpSlippageBps();
+  const slippageBps = Math.max(perpSlippageBps(), def.minSlippageBps ?? 0);
   const acceptablePrice = input.side === 'long' ? mark.price * (1 + slippageBps / 10_000) : mark.price * (1 - slippageBps / 10_000);
   const id = newId();
   const quotedAt = new Date();
@@ -489,7 +489,7 @@ export async function quotePerpClose(user: PerpUser, positionId: string): Promis
   const { closeFeeBps } = terms(venue, chain);
   const fee = Math.min(gross, (row.size * closeFeeBps) / 10_000);
   const payout = gross - fee;
-  const slippageBps = perpSlippageBps();
+  const slippageBps = Math.max(perpSlippageBps(), def.minSlippageBps ?? 0);
   // Closing a long sells (a floor), closing a short buys (a ceiling).
   const acceptablePrice = row.side === 'long' ? mark.price * (1 - slippageBps / 10_000) : mark.price * (1 + slippageBps / 10_000);
   const id = newId();
