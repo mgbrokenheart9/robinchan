@@ -18,6 +18,10 @@ export function walletErrorText(err: unknown): string | null {
   if (e?.name === 'ChainMismatchError' || e?.name === 'ChainNotConfiguredError' || /does not match the target chain|unrecognized chain|chain mismatch/i.test(said)) {
     return 'Switch the wallet to Robinhood Chain and try again.';
   }
+  // MetaMask's own breaker: its RPC failed too often, so it stops using it for a while.
+  if (/returned too many errors|different RPC endpoint/i.test(said)) {
+    return 'MetaMask paused its Robinhood Chain RPC after too many errors. Nothing was sent — in MetaMask, give Robinhood Chain another RPC (e.g. https://robinhood-rpc.publicnode.com) and try again.';
+  }
   if (/rate limit|too many requests|\b429\b|upgrade to paid plan/i.test(said)) {
     return 'The wallet’s Robinhood Chain RPC is refusing requests right now (rate limited). Nothing was sent — try again in a minute, or give the wallet another RPC for Robinhood Chain.';
   }
