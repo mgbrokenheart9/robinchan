@@ -267,7 +267,9 @@ export async function runReportedFeeds(): Promise<void> {
 export async function runTwapFeeds(): Promise<void> {
   if (perpsVenue() !== 'agri-perp' || !(await active())) return;
   const r = await runTwapRounds();
-  if (r.rounds) log.debug('perps', `${r.rounds} TWAP rounds made (${r.updated} updates)`);
+  // A round a quarter-hour per quiet feed: few enough to log each, and the one sign the feeds are alive.
+  if (r.made.length) log.info('perps', `TWAP rounds: ${r.made.map((m) => `${m.symbol} ${m.usd > 0 ? `$${m.usd.toPrecision(5)}` : 'no price'}`).join(', ')}`);
+  else if (r.updated) log.debug('perps', `${r.updated} TWAP observations recorded`);
 }
 
 /**

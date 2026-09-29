@@ -62,8 +62,8 @@ function warnOnce(key: string, message: string, everyMs = 300_000): void {
 }
 
 /** Calls `update()` on every deployed TwapRoundFeed whose turn has come (twapCadenceSec). */
-export async function runTwapRounds(): Promise<{ updated: number; rounds: number }> {
-  const out = { updated: 0, rounds: 0 };
+export async function runTwapRounds(): Promise<{ updated: number; rounds: number; made: Array<{ symbol: string; usd: number }> }> {
+  const out = { updated: 0, rounds: 0, made: [] as Array<{ symbol: string; usd: number }> };
   const markets = twapRoundMarkets();
   if (perpsVenue() !== 'agri-perp' || markets.length === 0) return out;
   const client = publicClient();
@@ -92,6 +92,8 @@ export async function runTwapRounds(): Promise<{ updated: number; rounds: number
       const made = parseEventLogs({ abi: TWAP_ROUND_FEED_ABI, logs: receipt.logs, eventName: 'RoundMade' });
       for (const ev of made) {
         out.rounds += 1;
+        // TwapRoundFeed answers with 18 decimals.
+        out.made.push({ symbol: def.symbol, usd: Number(ev.args.answer) / 1e18 });
         // A round answering 0: the pool fell under the floor, or ETH/USD went stale.
         if (ev.args.answer === 0n) {
           warnOnce(
