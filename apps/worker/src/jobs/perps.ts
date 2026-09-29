@@ -279,7 +279,9 @@ export async function runTwapFeeds(): Promise<void> {
  */
 export async function runRhTokenPools(): Promise<void> {
   if (!(await active())) return;
-  const withPools = await callProvider({ id: 'dexscreener', configured: true }, () => runRhPools());
+  // A circuit of its own: $RCHAN's price lookup (providers/dexscreener.ts) fails while its only pool
+  // is a thin v4 one, and a shared circuit it trips would leave this board stale.
+  const withPools = await callProvider({ id: 'dexscreener-pools', configured: true }, () => runRhPools());
   log.debug('perps', `RH Tokens: ${withPools} with pools on Robinhood Chain`);
 }
 
