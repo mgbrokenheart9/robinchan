@@ -51,6 +51,31 @@
       "symbol": "META",
       "feed": "0x7C38C00C30BEe9378381E7B6135d7283356D71b1",
       "description": "Robinhood META / USD"
+    },
+    {
+      "symbol": "SPCX",
+      "feed": "0xB265810950ba6c5C0Ff821c9963014a56fD8Bffb",
+      "description": "Robinhood SPCX / USD"
+    },
+    {
+      "symbol": "SPY",
+      "feed": "0x319724394D3A0e3669269846abE664Cd621f9f6A",
+      "description": "RHSPY / USD"
+    },
+    {
+      "symbol": "CRCL",
+      "feed": "0x6652eDf64bA3731C4F2D3ce821A0Fb1f1f6b482a",
+      "description": "Robinhood CRCL / USD"
+    },
+    {
+      "symbol": "MU",
+      "feed": "0x425EEFdCf05ed6526C3cE61Af99429A228a6d596",
+      "description": "RHMU / USD"
+    },
+    {
+      "symbol": "GLD",
+      "feed": "0x470A51258068043bd43dC0a56245625C9fE86eB0",
+      "description": "GLD / USD"
     }
   ],
   "owner": "0x6c079ff20b77fbbc89fb5c90c5f43cf24166d7d4",

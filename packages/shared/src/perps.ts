@@ -278,9 +278,13 @@ export const perpComingSoon = (m: { category: PerpCategory; status?: string }): 
 
 /**
  * The deployed TwapRoundFeeds on Robinhood Chain mainnet, by market
- * (contracts/deployments/4663-twap.json). None yet.
+ * (contracts/deployments/4663-twap.json, 2026-09-29).
  */
-const TWAP_ROUND_FEEDS: Record<string, `0x${string}`> = {};
+const TWAP_ROUND_FEEDS: Record<string, `0x${string}`> = {
+  PONS: '0x0931fdc472e1d75379569b889df23518c65480dc',
+  CASHCAT: '0x43472dc130b64f85386e85d11c2d18390ee1f5ea',
+  DELTA: '0xe25af4ae6404ce04769dbfeb7cf61fd723517bc7',
+};
 
 /**
  * An RH Token market: coming soon until its TwapRoundFeed is deployed, then

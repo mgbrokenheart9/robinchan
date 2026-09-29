@@ -231,7 +231,7 @@ await check('20 markets in 3 categories; the 11 without a Chainlink feed on Robi
   assert.equal(markets.length, 28);
   assert.deepEqual([...new Set(markets.map((m) => m.category))], ['agri', 'crypto', 'stocks', 'rh']);
   const unavailable = markets.filter((m) => m.status === 'unavailable');
-  assert.deepEqual(unavailable.map((m) => m.symbol), ['PALM', 'SOL', 'ARB', 'PONS', 'CASHCAT', 'DELTA']);
+  assert.deepEqual(unavailable.map((m) => m.symbol), ['PALM', 'SOL', 'ARB']);
   for (const m of unavailable) assert.match(m.statusNote ?? '', /Chainlink has no|^Coming soon\./);
   const eth = markets.find((m) => m.symbol === 'ETH')!;
   assert.equal(eth.status, 'open');

@@ -1,0 +1,25 @@
+{
+  "chainId": 4663,
+  "owner": "0x6c079ff20b77fbbc89fb5c90c5f43cf24166d7d4",
+  "feeds": [
+    {
+      "symbol": "PONS",
+      "feed": "0x0931fdc472e1d75379569b889df23518c65480dc",
+      "pair": "0xed50bdeea8adc232f159486192a4157281d722ff",
+      "liquidityUsd": 1730326.568901018
+    },
+    {
+      "symbol": "CASHCAT",
+      "feed": "0x43472dc130b64f85386e85d11c2d18390ee1f5ea",
+      "pair": "0xa70fc67c9f69da90b63a0e4c05d229954574e313",
+      "liquidityUsd": 3579253.831800212
+    },
+    {
+      "symbol": "DELTA",
+      "feed": "0xe25af4ae6404ce04769dbfeb7cf61fd723517bc7",
+      "pair": "0xd64fbda67e1015df43fa5e49f02ca844729e5f94",
+      "liquidityUsd": 1207985.929912567
+    }
+  ],
+  "deployedAt": "2026-09-29T01:34:14.074Z"
+}

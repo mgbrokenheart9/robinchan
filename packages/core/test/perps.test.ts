@@ -104,11 +104,11 @@ await setPrice('ETH', 3000);
 /* ------------------------------------------------------------------ */
 
 describe('perps registry', () => {
-  test('every feed is a contract address, listed once — 14 Chainlink proxies and 8 reported agri feeds', () => {
+  test('every feed is a contract address, listed once — 14 Chainlink proxies, 8 reported agri feeds and 3 TWAP feeds', () => {
     const feeds = PERP_MARKETS.flatMap((m) => m.contracts.map((c) => c.feedId));
     for (const f of feeds) assert.match(f, /^0x[0-9a-fA-F]{40}$/, f);
     assert.equal(new Set(feeds.map((f) => f.toLowerCase())).size, feeds.length);
-    assert.equal(perpOracleFeeds().length, 22);
+    assert.equal(perpOracleFeeds().length, 25);
   });
 
   test('agri trades on its reported feeds but palm oil (coming soon); SOL and ARB have no Chainlink feed', () => {
@@ -129,7 +129,7 @@ describe('perps registry', () => {
     }
     assert.deepEqual(
       tradablePerpMarkets().map((m) => m.symbol),
-      ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'RICE', 'COTT', 'BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META', 'SPCX', 'SPY', 'CRCL', 'MU', 'GLD'],
+      ['CORN', 'SOYB', 'WEAT', 'COFF', 'COCC', 'SUGA', 'RICE', 'COTT', 'BTC', 'ETH', 'AAPL', 'TSLA', 'NVDA', 'AMZN', 'GOOGL', 'MSFT', 'META', 'SPCX', 'SPY', 'CRCL', 'MU', 'GLD', 'PONS', 'CASHCAT', 'DELTA'],
     );
   });
 
@@ -153,7 +153,7 @@ describe('perps registry', () => {
     assert.equal(perpSessionOpen(perpMarket('BTC')!, Date.parse('2026-09-26T12:00:00Z')), true, 'crypto never shuts');
   });
 
-  test('RH Tokens: PONS, CASHCAT and DELTA on their Uniswap V3 pools — 24/7, 5× at most, $10k a position, coming soon until deployed', () => {
+  test('RH Tokens: PONS, CASHCAT and DELTA on their Uniswap V3 pools — 24/7, 5× at most, $10k a position, on their deployed feeds', () => {
     const rh = PERP_MARKETS.filter((m) => m.category === 'rh');
     assert.deepEqual(rh.map((m) => m.symbol), ['PONS', 'CASHCAT', 'DELTA']);
     for (const m of rh) {
@@ -165,10 +165,10 @@ describe('perps registry', () => {
       assert.match(m.twap.token ?? '', /^0x[0-9a-f]{40}$/, m.symbol);
       assert.match(m.twap.pool?.address ?? '', /^0x[0-9a-f]{40}$/, m.symbol);
       assert.equal(m.twap.pool?.kind, 'uniswap-v3', m.symbol);
-      // None is deployed yet.
-      assert.equal(m.twap.roundFeed, null, m.symbol);
-      assert.match(m.unavailable as string, /^Coming soon\./, m.symbol);
-      assert.ok(perpComingSoon(m), m.symbol);
+      // Deployed 2026-09-29 (contracts/deployments/4663-twap.json): the market trades on its feed.
+      assert.match(m.twap.roundFeed ?? '', /^0x[0-9a-f]{40}$/, m.symbol);
+      assert.equal(m.unavailable, undefined, m.symbol);
+      assert.equal(m.contracts[0]?.feedId, m.twap.roundFeed, m.symbol);
     }
     assert.deepEqual(core.twapFeedsForDeploy().map((f) => [f.symbol, f.pair, f.kind, f.minLiquidityUsd, f.windowSec, f.maxStalenessSec, f.maxOiUsd]), [
       ['PONS', '0xed50bdeea8adc232f159486192a4157281d722ff', 1, RH_TOKEN_MIN_LIQUIDITY_USD, 900, 3600, 10_000],

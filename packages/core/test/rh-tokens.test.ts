@@ -71,7 +71,7 @@ describe('RH Tokens board', () => {
     assert.equal(row.meetsLiquidity, true, '$4.9M ≥ $500k');
     assert.equal(row.oraclePool?.address, CASHCAT_V3);
     assert.equal(row.oraclePool?.label, 'Uniswap V3 CASHCAT/WETH');
-    assert.equal(row.twapPrice, null, 'no feed deployed');
+    assert.equal(row.twapPrice, null, 'no average yet');
     assert.equal(row.status, 'unavailable');
     assert.equal(board.minLiquidityUsd, RH_TOKEN_MIN_LIQUIDITY_USD);
     assert.equal(board.oracle, TWAP_BADGE);
@@ -107,8 +107,12 @@ describe('RH Tokens board', () => {
     assert.equal(board.tokens.find((t) => t.symbol === 'PONS')?.meetsLiquidity, false, 'unknown depth never passes');
   });
 
-  test('no TwapRoundFeed deployed yet: the keeper has nothing to update', () => {
-    assert.deepEqual(twapRoundMarkets(), []);
+  test('the keeper updates the three deployed feeds', () => {
+    assert.deepEqual(twapRoundMarkets().map((m) => [m.symbol, m.twap.roundFeed]), [
+      ['PONS', '0x0931fdc472e1d75379569b889df23518c65480dc'],
+      ['CASHCAT', '0x43472dc130b64f85386e85d11c2d18390ee1f5ea'],
+      ['DELTA', '0xe25af4ae6404ce04769dbfeb7cf61fd723517bc7'],
+    ]);
   });
 
   test('the keeper updates a feed every minute while an order waits, every 5 with positions open, every 16 otherwise', () => {
