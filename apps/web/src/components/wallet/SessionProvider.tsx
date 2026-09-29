@@ -15,6 +15,7 @@ import { createSiweMessage } from 'viem/siwe';
 import { useAccount, useDisconnect, useSignMessage, useSwitchChain } from 'wagmi';
 
 import { ApiClientError, apiFetch } from '@/lib/api';
+import { walletErrorText } from '@/lib/walletError';
 
 /**
  * Who the app is talking to. Three things have to agree before anything
@@ -221,7 +222,6 @@ export function SessionProvider({ chain, children }: { chain: ChainConfig | null
 function signInError(err: unknown): string {
   if (err instanceof ApiClientError) return err.message;
   const message = err instanceof Error ? err.message : String(err);
-  if (/rejected|denied|cancel/i.test(message)) return 'Signature request was declined in the wallet.';
-  if (/chain/i.test(message)) return 'Switch the wallet to the right network and try again.';
-  return 'Sign-in failed. Try again.';
+  if (/rejected|denied|cancel/i.test(message.split('\n')[0] ?? '')) return 'Signature request was declined in the wallet.';
+  return walletErrorText(err) ?? 'Sign-in failed. Try again.';
 }

@@ -19,6 +19,7 @@ import { useSession } from '@/components/wallet/SessionProvider';
 
 import { ApiClientError, apiFetch } from './api';
 import { lockOrder, unlockOrder, useOrderLock } from './orderLock';
+import { walletErrorShort, walletErrorText } from './walletError';
 
 /**
  * Signing an order — the one client path for both the Trade form and an
@@ -236,9 +237,8 @@ function signError(err: unknown): string {
   if (err instanceof ApiClientError) return err.message;
   const message = err instanceof Error ? err.message : String(err);
   if (message === 'ADDRESS_CHANGED') return 'The connected wallet changed since this quote. Get a new quote.';
-  if (/rejected|denied|user cancel/i.test(message)) return 'You declined it in the wallet. Nothing was sent.';
-  if (/insufficient funds/i.test(message)) return 'The wallet doesn’t have enough to cover this and its network fee.';
-  if (/chain/i.test(message)) return 'Switch the wallet to the right network and try again.';
-  if (/timed? ?out/i.test(message)) return 'The approval is taking long to confirm. Check the wallet, then refresh the price.';
-  return 'Signing failed. Nothing was sent.';
+  const known = walletErrorText(err);
+  if (known) return known;
+  if (/timed? ?out/i.test(message.split('\n')[0] ?? '')) return 'The approval is taking long to confirm. Check the wallet, then refresh the price.';
+  return `The wallet couldn’t send it (${walletErrorShort(err)}). Nothing was sent.`;
 }
