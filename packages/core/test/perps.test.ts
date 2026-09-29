@@ -453,6 +453,20 @@ describe('perps on the paper venue', () => {
     }
   });
 
+  test('a transaction on its way blocks the next quote; an order that landed and waits for its price doesn’t', async () => {
+    const { user } = await newUser(false);
+    const action = (id: string, chainOrderId: string | null): PerpActionRow => ({
+      id, userId: user.id, address: user.address.toLowerCase(), kind: 'close', venue: 'agri-perp', symbol: 'NVDA', positionId: null, amount: null,
+      status: 'pending', quote: {}, chainOrderId, cancelRequestedAt: null, txHash: '0x' + '1'.repeat(64), txHashes: [], signature: null,
+      error: null, expiresAt: null, checkedAt: null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    });
+    const store = getPerpStore();
+    await store.insertAction(action(crypto.randomUUID(), '6'));
+    await core.assertNothingInFlight(user.id);
+    await store.insertAction(action(crypto.randomUUID(), null));
+    await rejects(core.assertNothingInFlight(user.id), 'ORDER_IN_FLIGHT');
+  });
+
   test('the keeper liquidates at 80% loss and pays the trader what is left after the 10% reward', async () => {
     const { account, user } = await newUser();
     const quote = await core.quotePerpOpen(user, { symbol: 'ETH', side: 'short', collateral: 1000, leverage: 10 });

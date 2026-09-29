@@ -192,9 +192,15 @@ async function estimateGasNative(txs: TxRequest[], from: Address): Promise<numbe
   return Number(formatEther(units * gasPrice));
 }
 
-async function assertNothingInFlight(userId: string): Promise<void> {
-  const pending = await getPerpStore().listActions({ userId, statuses: ['pending'], limit: 1 });
-  if (pending.length) {
+/**
+ * One transaction on its way at a time, so the wallet's nonces never race.
+ * An order whose request already landed isn't in flight: it only waits for
+ * its price — hours, for a stock feed quiet overnight — and mustn't block
+ * the trader's next order meanwhile.
+ */
+export async function assertNothingInFlight(userId: string): Promise<void> {
+  const pending = await getPerpStore().listActions({ userId, statuses: ['pending'], limit: 50 });
+  if (pending.some((a) => a.chainOrderId == null)) {
     throw new PerpError('ORDER_IN_FLIGHT', 'Your previous transaction is still waiting on the network. Let it land first.', 409);
   }
 }
