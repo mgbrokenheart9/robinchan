@@ -3,7 +3,7 @@ import { describe, test } from 'node:test';
 
 import { PERP_MARKETS, perpComingSoon, reportedSource } from '@robinchan/shared';
 
-import { parseYahooMeta, reportedRoundMarkets, toFeedPrice } from '../src/perps/reported';
+import { parseYahooMeta, reportedCadence, reportedRoundMarkets, toFeedPrice } from '../src/perps/reported';
 
 describe('Reported agri prices: Yahoo Finance quotes', () => {
   test('US-cent quotes (grains, coffee, sugar, cotton) become USD; USD quotes (cocoa, rice) stay', () => {
@@ -46,5 +46,25 @@ describe('Reported agri markets in the registry', () => {
       reportedRoundMarkets().map((m) => m.symbol),
       PERP_MARKETS.filter((m) => m.reported?.roundFeed).map((m) => m.symbol),
     );
+  });
+});
+
+describe('Reported agri prices: gas spent where it matters', () => {
+  test('an order waiting: a round every 2 minutes; positions open: 0.2% or 10 minutes; quiet: 1% or an hour', () => {
+    assert.deepEqual(reportedCadence({ orderWaiting: true, openInterest: 0 }), { move: 0.002, heartbeatSec: 120 });
+    assert.deepEqual(reportedCadence({ orderWaiting: true, openInterest: 50 }), { move: 0.002, heartbeatSec: 120 });
+    assert.deepEqual(reportedCadence({ orderWaiting: false, openInterest: 50 }), { move: 0.002, heartbeatSec: 600 });
+    assert.deepEqual(reportedCadence({ orderWaiting: false, openInterest: 0 }), { move: 0.01, heartbeatSec: 3_600 });
+  });
+
+  test('the quiet heartbeat is configurable, never under 10 minutes', () => {
+    process.env.PERPS_REPORTED_QUIET_SEC = '7200';
+    try {
+      assert.equal(reportedCadence({ orderWaiting: false, openInterest: 0 }).heartbeatSec, 7_200);
+      process.env.PERPS_REPORTED_QUIET_SEC = '60';
+      assert.equal(reportedCadence({ orderWaiting: false, openInterest: 0 }).heartbeatSec, 3_600);
+    } finally {
+      delete process.env.PERPS_REPORTED_QUIET_SEC;
+    }
   });
 });

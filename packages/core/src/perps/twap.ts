@@ -51,6 +51,17 @@ export function twapCadenceSec(state: { orderWaiting: boolean; openInterest: num
   return TWAP_CADENCE_SEC.quiet;
 }
 
+/**
+ * PERPS_TWAP_SLEEP=true: the budget mode. The quiet cadence still costs ~90
+ * updates a day per feed (about 0.0003 ETH a day each on Robinhood Chain,
+ * 2026-09-30); asleep, a feed with no open position and no order waiting
+ * isn't updated at all. An hour on its circuit breaker stops it: its market
+ * shows paused and takes no new orders until the mode is off again. A feed
+ * with positions open keeps its cadence, so they can always be closed and
+ * liquidated.
+ */
+export const twapSleeps = (): boolean => process.env.PERPS_TWAP_SLEEP?.trim().toLowerCase() === 'true';
+
 /** When each feed last observed, as this worker saw it (read from the chain on first sight). */
 const observedAt = new Map<string, number>();
 
@@ -84,7 +95,10 @@ export async function runTwapRounds(): Promise<{ updated: number; rounds: number
         observedAt.set(key, next === 0 ? 0 : next - TWAP_CADENCE_SEC.orderWaiting);
       }
       const m = cs?.markets[def.symbol];
-      const cadence = twapCadenceSec({ orderWaiting: waiting.has(def.symbol), openInterest: m ? m.longOi + m.shortOi : 0 });
+      const openInterest = m ? m.longOi + m.shortOi : 0;
+      // Asleep (PERPS_TWAP_SLEEP): a feed nobody holds or waits on gets no update — no gas.
+      if (twapSleeps() && !waiting.has(def.symbol) && openInterest === 0) continue;
+      const cadence = twapCadenceSec({ orderWaiting: waiting.has(def.symbol), openInterest });
       if ((observedAt.get(key) ?? 0) + cadence + CLOCK_MARGIN_SEC > now) continue;
       const hash = await wallet.writeContract({ ...on, functionName: 'update' });
       const receipt = await client.waitForTransactionReceipt({ hash, timeout: 30_000 });

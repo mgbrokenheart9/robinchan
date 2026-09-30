@@ -474,3 +474,40 @@ down.
    variables needs a manual redeploy.
 9. **Smoke test** with small money on each chain, as §8: the switcher on /perps (`?chain=base`)
    moves the wallet to the chain (adding it if needed), and every quote's transactions carry it.
+
+### 15a. The budget plan (one wallet, smallest fees)
+
+Measured 2026-09-30: the keeper on Robinhood Chain spent ~0.0025 ETH a day (~$6.50). It ran
+dry that day, which stopped every feed about 9.5 hours before the check. Two things cost the
+most:
+
+- **Agri prices:** 736 rounds a day, about half of them for four markets that aren't listed
+  (COFF, COCC, SUGA, RICE).
+- **RH Token averages:** ~90 updates a day per feed, even with nobody trading them.
+
+The worker is now cheaper by default:
+
+- It posts no price to an unlisted agri market (once it has its first round).
+- A market nobody holds gets a round per hour or per 1% move (`PERPS_REPORTED_QUIET_SEC`).
+- Open positions still get one per 10 minutes, and a waiting order one per 2 minutes.
+
+Opt-in on Railway: `PERPS_TWAP_SLEEP=true` stops updating RH Token feeds that nobody holds or
+waits on. Within an hour those markets show paused and take no new orders. Positions already
+open keep their feed.
+
+| | Robinhood Chain keeper | Base | Arbitrum |
+|---|---|---|---|
+| Before | ~0.0025 ETH/day | — | — |
+| Budget, RH Tokens awake | ~0.001 ETH/day (est.) | ~0 (gold/silver only) | not launched |
+| Budget + `PERPS_TWAP_SLEEP` | ~0.0002 ETH/day (est.) | ~0 | not launched |
+
+On Base the budget launch costs about 0.0001 ETH:
+
+```
+npm run wallet:check:hemat        # RH Chain 0.005 ETH; Base 0.001 ETH + 5 USDC
+npm run launch:base:hemat         # gold + silver (Chainlink), 5 USDC pool, no agri feeds
+npm run add-agri:base             # later: corn, soybeans, wheat, coffee (their prices cost keeper gas)
+```
+
+Chainlink pushes its own rounds for gold and silver, so the keeper pays gas on Base only to
+execute orders (the order's execution fee covers it) and to liquidate.

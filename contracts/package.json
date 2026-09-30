@@ -14,7 +14,11 @@
     "launch:base": "hardhat run scripts/launch-network.ts --network base",
     "launch:arbitrum": "hardhat run scripts/launch-network.ts --network arbitrum",
     "list-agri:base": "hardhat run scripts/list-agri-markets.ts --network base",
-    "list-agri:arbitrum": "hardhat run scripts/list-agri-markets.ts --network arbitrum"
+    "list-agri:arbitrum": "hardhat run scripts/list-agri-markets.ts --network arbitrum",
+    "wallet:check:hemat": "npx tsx scripts/wallet-check.ts --hemat",
+    "launch:base:hemat": "hardhat run scripts/launch-budget.ts --network base",
+    "add-agri:base": "hardhat run scripts/add-agri.ts --network base",
+    "add-agri:arbitrum": "hardhat run scripts/add-agri.ts --network arbitrum"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",

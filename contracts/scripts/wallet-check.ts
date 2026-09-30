@@ -52,9 +52,22 @@ const CHAINS: Chain[] = [
   },
 ];
 
-console.log(`Wallet ${WALLET}\n`);
+/**
+ * `--hemat` (budget): Robinhood Chain's keeper on its cheap settings
+ * (PERPS_TWAP_SLEEP=true, agri prices hourly while nobody trades them) and
+ * Base with gold and silver only; Arbitrum waits.
+ */
+const BUDGET = process.argv.includes('--hemat');
+const BUDGET_NEEDS: Record<string, { needEth: string; needUsdc: string; why: string } | null> = {
+  'Robinhood Chain': { needEth: '0.005', needUsdc: '0', why: 'the keeper on its cheap settings, about 3–4 weeks' },
+  Base: { needEth: '0.001', needUsdc: '5', why: 'the budget launch (~0.0001 ETH) and liquidations' },
+  Arbitrum: null,
+};
+const chains = BUDGET ? CHAINS.flatMap((c) => (BUDGET_NEEDS[c.name] ? [{ ...c, ...BUDGET_NEEDS[c.name] }] : [])) : CHAINS;
+
+console.log(`Wallet ${WALLET}${BUDGET ? '  (budget plan)' : ''}\n`);
 let ready = true;
-for (const c of CHAINS) {
+for (const c of chains) {
   const client = createPublicClient({ transport: http(c.rpc, { retryCount: 3, timeout: 20_000 }) });
   try {
     const [eth, usdc] = await Promise.all([
@@ -76,4 +89,10 @@ for (const c of CHAINS) {
   }
   console.log('');
 }
-console.log(ready ? 'Ready: npm run launch:base, then npm run launch:arbitrum.' : 'Not ready yet: top up what says LOW, then run this again.');
+console.log(
+  !ready
+    ? 'Not ready yet: top up what says LOW, then run this again.'
+    : BUDGET
+      ? 'Ready: npm run launch:base:hemat'
+      : 'Ready: npm run launch:base, then npm run launch:arbitrum.',
+);

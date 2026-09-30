@@ -3,9 +3,9 @@ import { reportedSource } from '@robinchan/shared';
 
 import { publicClient } from '../chain';
 import { REPORTED_ROUND_FEED_ABI } from './abi';
-import { chainNow } from './chain';
+import { chainNow, chainState } from './chain';
 import { perpsVenue } from './config';
-import { keeperWallet } from './keeper';
+import { keeperWallet, waitingOrderMarkets } from './keeper';
 import { marketsHere, perpNetwork } from './network';
 
 /**
@@ -16,17 +16,36 @@ import { marketsHere, perpNetwork } from './network';
  * slower, never predictable. Traders trust the operator for these prices;
  * the UI says where they come from.
  *
- * A round goes up when the price moved RECORD_MOVE since the last one, or
- * HEARTBEAT_SEC of market time passed — a closed market quotes nothing new,
- * and posts nothing. A move past the contract's cap (15%) is left for the
- * owner to check and post (`reportUnchecked`).
+ * A round goes up when the price moved enough since the last one, or enough
+ * market time passed — how much depends on what rides on the market
+ * (reportedCadence) — and a closed market quotes nothing new, and posts
+ * nothing. A move past the contract's cap (15%) is left for the owner to
+ * check and post (`reportUnchecked`).
+ *
+ * Each round is a keeper transaction. Posting every market every 10 minutes
+ * cost ~736 transactions a day on Robinhood Chain (2026-09-30), about half
+ * of them for markets that weren't even listed: now a market nobody trades
+ * gets a round an hour, an unlisted one none once it has the round its
+ * listing needs, and one with an order waiting a round every 2 minutes.
  */
 
 const YAHOO_URL = (): string => (process.env.YAHOO_CHART_URL?.trim() || 'https://query1.finance.yahoo.com/v8/finance/chart').replace(/\/+$/, '');
-/** A move this large (0.2%) makes a round without waiting for the heartbeat. */
-const RECORD_MOVE = 0.002;
-/** Market time between rounds while the price holds still. */
-const HEARTBEAT_SEC = 600;
+
+/**
+ * When a market's next round goes up: a move of `move` since the last, or
+ * `heartbeatSec` of market time. An order waiting fills on the first round
+ * quoted after it — Yahoo's quotes run ~10 minutes behind, so not the next
+ * quote but one a while on: every 2 minutes gets it there soon without a
+ * transaction per quote. Open positions need a price near the market to be
+ * liquidated on (0.2% or 10 minutes, as before); a market nobody holds only
+ * keeps its price shown — 1% or an hour (PERPS_REPORTED_QUIET_SEC).
+ */
+export function reportedCadence(state: { orderWaiting: boolean; openInterest: number }): { move: number; heartbeatSec: number } {
+  if (state.orderWaiting) return { move: 0.002, heartbeatSec: 120 };
+  if (state.openInterest > 0) return { move: 0.002, heartbeatSec: 600 };
+  const quiet = Number(process.env.PERPS_REPORTED_QUIET_SEC);
+  return { move: 0.01, heartbeatSec: Number.isFinite(quiet) && quiet >= 600 ? quiet : 3_600 };
+}
 /** ReportedRoundFeed.MAX_QUOTE_AGE, less a margin: an older quote would be refused. */
 const MAX_QUOTE_AGE_SEC = 3_300;
 /** The contract's default cap on one round's move (constructor's maxMoveBps). */
@@ -115,6 +134,8 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
   const client = publicClient();
   const wallet = keeperWallet();
   if (!client || !wallet) return out;
+  const cs = await chainState({ maxAgeSec: 30 }).catch(() => null);
+  const waiting = waitingOrderMarkets();
 
   for (const def of markets) {
     const on = { address: def.reported.roundFeed, abi: REPORTED_ROUND_FEED_ABI } as const;
@@ -125,6 +146,11 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
         client.readContract({ ...on, functionName: 'roundCount' }),
         client.readContract({ ...on, functionName: 'rollFactor' }),
       ]);
+      // Not listed on the perps contract: nobody can trade it, so no gas on it — once it has
+      // the round its listing needs (list-agri-markets.ts). Months roll when it's back.
+      const m = cs?.markets[def.symbol];
+      if (m && !m.listed && rounds > 0n) continue;
+      const cadence = reportedCadence({ orderWaiting: waiting.has(def.symbol), openInterest: m ? m.longOi + m.shortOi : 0 });
       if (reporter.toLowerCase() !== wallet.account.address.toLowerCase()) {
         warnOnce(`reported:${net}:reporter:${def.symbol}`, `[perps] ${tag}${def.symbol}: the keeper isn't this feed's reporter (${reporter})`);
         continue;
@@ -166,7 +192,7 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
           warnOnce(`reported:${net}:move:${def.symbol}`, `[perps] ${tag}${def.symbol}: ${month.symbol} moved ${(move * 100).toFixed(1)}% since the last round — past the cap, the owner has to check and post it (reportUnchecked)`);
           continue;
         }
-        if (move < RECORD_MOVE && quote.quotedAt - Number(lastQuotedAt) < HEARTBEAT_SEC) continue;
+        if (move < cadence.move && quote.quotedAt - Number(lastQuotedAt) < cadence.heartbeatSec) continue;
       }
       const hash = await wallet.writeContract({ ...on, functionName: 'report', args: [price, BigInt(quote.quotedAt)] });
       await client.waitForTransactionReceipt({ hash, timeout: 30_000 });
