@@ -196,7 +196,7 @@ create table if not exists perp_positions (
   chain_id           integer,
   chain_position_id  numeric,
   symbol             text not null,
-  category           text not null check (category in ('agri', 'crypto', 'stocks', 'rh')),
+  category           text not null check (category in ('agri', 'crypto', 'stocks', 'rh', 'commodities')),
   side               text not null check (side in ('long', 'short')),
   collateral         numeric not null check (collateral > 0),
   size               numeric not null check (size > 0),
@@ -221,19 +221,20 @@ create table if not exists perp_positions (
   closed_at          timestamptz,
   updated_at         timestamptz not null default now()
 );
--- The original check had no RH Tokens ('rh').
+-- The original check had no RH Tokens ('rh'), and the next none of Base's
+-- and Arbitrum's gold, silver and oil ('commodities').
 do $$
 begin
   if exists (
     select 1 from pg_constraint
      where conname = 'perp_positions_category_check'
-       and pg_get_constraintdef(oid) not like '%''rh''%'
+       and pg_get_constraintdef(oid) not like '%''commodities''%'
   ) then
     alter table perp_positions drop constraint perp_positions_category_check;
   end if;
   if not exists (select 1 from pg_constraint where conname = 'perp_positions_category_check') then
     alter table perp_positions add constraint perp_positions_category_check
-      check (category in ('agri', 'crypto', 'stocks', 'rh'));
+      check (category in ('agri', 'crypto', 'stocks', 'rh', 'commodities'));
   end if;
 end $$;
 create unique index if not exists perp_positions_chain_idx
@@ -270,6 +271,10 @@ create table if not exists perp_actions (
 alter table perp_actions add column if not exists chain_order_id numeric;
 -- On chain: when the trader asked for a waiting order back (released five minutes on).
 alter table perp_actions add column if not exists cancel_requested_at timestamptz;
+-- The chain an action's transactions go to (Multichain brief); null on paper
+-- and for actions recorded before it was (Robinhood Chain's).
+alter table perp_actions add column if not exists chain_id integer;
+create index if not exists perp_actions_chain_live_idx on perp_actions (chain_id, status) where status in ('quoted', 'pending');
 create index if not exists perp_actions_user_idx on perp_actions (user_id, created_at desc);
 create index if not exists perp_actions_live_idx on perp_actions (status) where status in ('quoted', 'pending');
 

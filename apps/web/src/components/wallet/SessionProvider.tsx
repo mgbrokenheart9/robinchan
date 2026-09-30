@@ -41,6 +41,7 @@ export type SessionState = {
   signedIn: boolean;
   /** Still working out the above; render skeletons, not the gate. */
   resolving: boolean;
+  /** Connected to a chain nothing here runs on (the app's own, or one perps run on). */
   wrongChain: boolean;
   /** Connected wallet differs from the signed-in one. */
   mismatch: boolean;
@@ -73,7 +74,16 @@ export function useOptionalSession(): SessionState | null {
 const STATEMENT =
   'Sign in to Robinchan. This proves you own this wallet; it sends no transaction and costs no gas.';
 
-export function SessionProvider({ chain, children }: { chain: ChainConfig | null; children: ReactNode }) {
+export function SessionProvider({
+  chain,
+  otherChainIds = [],
+  children,
+}: {
+  chain: ChainConfig | null;
+  /** Chains perps also run on (Multichain brief): a wallet on one of them isn't on the wrong network. */
+  otherChainIds?: number[];
+  children: ReactNode;
+}) {
   const { address, chainId, isConnected, status: walletStatus } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { switchChainAsync } = useSwitchChain();
@@ -108,7 +118,7 @@ export function SessionProvider({ chain, children }: { chain: ChainConfig | null
   // portfolio needs proof of ownership, not a live connection. Signing will
   // ask the wallet to reconnect.
   const signedIn = Boolean(session) && !mismatch && walletStatus !== 'reconnecting' && walletStatus !== 'connecting';
-  const wrongChain = Boolean(chain && isConnected && chainId !== chain.id);
+  const wrongChain = Boolean(chain && isConnected && chainId !== chain.id && (chainId == null || !otherChainIds.includes(chainId)));
 
   // Tier, from the server, whenever the signed-in address changes.
   const sessionAddress = signedIn && session ? session.address.toLowerCase() : null;

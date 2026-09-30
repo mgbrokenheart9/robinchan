@@ -78,6 +78,14 @@ name is flagged as impersonating the official stock token.
 Every order fills at a price the trader could not have seen when they placed it: the first oracle
 round *observed* after the request. Full details are in [Perps](#perps-in-depth).
 
+**On Base and Arbitrum** (a chain switcher on /perps, once each stack is deployed — see
+[Multichain](#multichain-base-and-arbitrum)):
+
+| Network | Markets | Max leverage | Price source |
+| --- | --- | --- | --- |
+| Base | CORN, SOYB, WEAT, COFF · XAU, XAG | 5x, $50k a position | Agri: Robinchan's Yahoo Finance feed. Gold, silver: Chainlink on Base |
+| Arbitrum One | CORN, SOYB, WEAT, COFF · XAU, XAG, WTI | 5x, $50k a position | Agri: Robinchan's Yahoo Finance feed. Gold, silver, oil: Chainlink on Arbitrum |
+
 ## Status
 
 | Area | State |
@@ -490,6 +498,45 @@ confirmation), the LP seed, the keeper's gas budget, a borrow fee on open intere
 answer for leveraged derivatives on stocks.
 
 </details>
+
+### Multichain: Base and Arbitrum
+
+The same contracts, unmodified, deployed again on Base (8453) and Arbitrum One (42161), settled in
+Circle's USDC. Robinhood Chain doesn't change: its markets, the RH Tokens and the Gap board stay there.
+
+- **Oracles.** Chainlink publishes no agri feed on Base or Arbitrum (its directories, checked
+  2026-09-30), so the brief's "Chainlink native agri feeds" don't exist. The agri markets use the
+  operator's Yahoo Finance feed there too (a `ReportedRoundFeed` per market per chain), and each chain
+  adds the commodities Chainlink does publish on it: gold and silver, plus WTI oil on Arbitrum
+  (category `commodities`, the "Metals & Oil" tab).
+- **One app, several networks.** `packages/core/src/perps/network.ts`: every perps function runs
+  inside a network's scope (`withPerpNetwork`), where the chain, contracts, markets, cache keys and
+  stored rows are that network's. Robinhood Chain keeps its original settings; Base and Arbitrum are
+  configured under `BASE_…` and `ARB_…` (`BASE_RPC_URL` turns a network on, its three contract
+  addresses make it trade). Rows carry their chain id (`perp_actions.chain_id` is new), and an order
+  asked about on the wrong network says where it is.
+- **Worker.** Prices, orders, upkeep and the agri feeds run once per network, side by side; the
+  keeper key is shared. The RH Tokens' and Pyth's jobs stay on Robinhood Chain.
+- **API and page.** Every `/api/perps/*` route takes `?chain=robinhood|base|arbitrum`;
+  `/api/perps/chains` lists the networks. The Perps page has a chain switcher; it moves the wallet to
+  the network's chain (adding it when the wallet doesn't know it), follows the wallet when it
+  switches, greys out RH Chain-only tabs elsewhere ("Available on RH Chain only") and says when the
+  wallet is on a chain perps don't run on. Sign-in stays on Robinhood Chain.
+- **Deploying** is `contracts/MAINNET.md` §15; the scripts pick each chain's markets from
+  `contracts/deploy/base/` and `contracts/deploy/arbitrum/` (generated from the registry by
+  `scripts/perps-markets.mts`).
+
+| Brief says | Here | Why |
+| --- | --- | --- |
+| Chainlink agri feeds on Base/Arbitrum | Operator's Yahoo feed for agri, Chainlink for gold/silver/oil | No agri feed exists there |
+| 10× max leverage | 5× | They stop at the weekend and gap, like stocks (security review) |
+| Hardhat 2 + ethers config, `keeper/liquidator.ts` | Hardhat 3 + viem networks; the existing worker keeper, per network | The repo's stack; the contract has no `getAllOpenPositions` — positions are indexed from events |
+| `BASESCAN_API_KEY`, `ARBISCAN_API_KEY` | One `ETHERSCAN_API_KEY` (optional), Blockscout otherwise | Etherscan V2 keys cover both |
+| Maintenance margin 5%, liquidation fee 1% | The contract's own liquidation terms | No contract changes, as the brief asks |
+
+Tests: `packages/core/test/multichain.test.ts` and the store's PGlite tests; end to end over HTTP,
+`scripts/e2e-multichain.mts` (a local node standing in for Base Sepolia, real transactions, the
+worker's keeper, a Yahoo quote posted to Base's corn feed).
 
 ### The Live2D character
 

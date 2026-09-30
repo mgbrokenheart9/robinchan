@@ -197,4 +197,46 @@ describe('perps store (Postgres)', () => {
     assert.equal((await store.listActions({ userId: bob.id, statuses: ['pending'], limit: 10 }))[0]?.cancelRequestedAt, '2026-09-26T10:00:00.000Z');
     assert.equal((await store.listActions({ kinds: ['close'], limit: 10 })).length, 1);
   });
+
+  test('Multichain brief: rows by chain — Base’s are Base’s, the primary keeps its rows from before chain ids', async () => {
+    const carol = await db.upsertUser('0x00000000000000000000000000000000000000c3');
+    const addr = '0x00000000000000000000000000000000000000c3';
+    await store.insertPosition(position(carol.id, { address: addr, symbol: 'BTC', category: 'crypto' }));
+    await store.upsertChainPosition({ ...position(carol.id, { address: addr, venue: 'agri-perp', symbol: 'ETH', category: 'crypto' }), chainId: 4663, chainPositionId: '1' });
+    // Base's gold: the 'commodities' category, which the category check now takes.
+    await store.upsertChainPosition({ ...position(carol.id, { address: addr, venue: 'agri-perp', symbol: 'XAU', category: 'commodities', size: 300 }), chainId: 8453, chainPositionId: '1' });
+
+    const symbols = async (chain: { chainId: number; legacy: boolean }) =>
+      (await store.listPositions({ chain, address: addr, limit: 10 })).map((p) => p.symbol).sort();
+    assert.deepEqual(await symbols({ chainId: 4663, legacy: true }), ['BTC', 'ETH']);
+    assert.deepEqual(await symbols({ chainId: 8453, legacy: false }), ['XAU']);
+    assert.equal((await store.getChainPosition(8453, '1'))?.symbol, 'XAU', 'one position id on two chains, two positions');
+    assert.equal((await store.getChainPosition(4663, '1'))?.symbol, 'ETH');
+
+    const base = { chainId: 8453, legacy: false };
+    assert.deepEqual(await store.openInterest('agri-perp', base), [{ symbol: 'XAU', side: 'long', size: 300 }]);
+    assert.deepEqual(await store.volumeSince('agri-perp', new Date(Date.now() - 60_000), base), [{ symbol: 'XAU', size: 300 }]);
+
+    const legacy = await quotedAction(carol.id);
+    const { createdAt: _c, updatedAt: _u, ...fields } = legacy;
+    const onBase = await store.insertAction({ ...fields, id: randomUUID(), venue: 'agri-perp', chainId: 8453 });
+    assert.equal(onBase.chainId, 8453);
+    assert.equal(legacy.chainId, null, 'an action from before chain ids');
+    const ids = async (chain: { chainId: number; legacy: boolean }) => (await store.listActions({ chain, userId: carol.id, limit: 10 })).map((a) => a.id).sort();
+    assert.deepEqual(await ids(base), [onBase.id]);
+    assert.deepEqual(await ids({ chainId: 4663, legacy: true }), [legacy.id]);
+  });
+
+  test('the category check upgrades in place: an RH-era table takes commodities after migrate', async () => {
+    const old = new PGlite();
+    const oldPool = poolFrom(old);
+    await old.exec(`create table perp_positions (id uuid primary key default gen_random_uuid(), category text not null);
+      alter table perp_positions add constraint perp_positions_category_check check (category in ('agri', 'crypto', 'stocks', 'rh'));`);
+    await assert.rejects(old.exec(`insert into perp_positions (category) values ('commodities')`));
+    // Only the upgrade block of the schema: the rest would need the whole table.
+    const block = SCHEMA_SQL.slice(SCHEMA_SQL.indexOf('do $$\nbegin\n  if exists (\n    select 1 from pg_constraint\n     where conname = \'perp_positions_category_check\''));
+    await oldPool.query(block.slice(0, block.indexOf('end $$;') + 'end $$;'.length));
+    await old.exec(`insert into perp_positions (category) values ('commodities')`);
+    await assert.rejects(old.exec(`insert into perp_positions (category) values ('bonds')`));
+  });
 });

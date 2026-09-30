@@ -9,7 +9,12 @@
     "test": "hardhat test",
     "node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.ts",
-    "abi": "hardhat compile && node scripts/export-abi.mjs"
+    "abi": "hardhat compile && node scripts/export-abi.mjs",
+    "wallet:check": "npx tsx scripts/wallet-check.ts",
+    "launch:base": "hardhat run scripts/launch-network.ts --network base",
+    "launch:arbitrum": "hardhat run scripts/launch-network.ts --network arbitrum",
+    "list-agri:base": "hardhat run scripts/list-agri-markets.ts --network base",
+    "list-agri:arbitrum": "hardhat run scripts/list-agri-markets.ts --network arbitrum"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",

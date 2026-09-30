@@ -1,10 +1,11 @@
 import 'server-only';
 
-import type { ChainConfig, PerpVenueId } from '@robinchan/shared';
+import type { ChainConfig, PerpChainInfo, PerpVenueId } from '@robinchan/shared';
 import {
   chainConfig,
   heatReadsEnabled,
   isDev,
+  perpChainInfos,
   perpCollateralSymbol,
   perpsEnabled,
   perpsVenue,
@@ -31,6 +32,8 @@ export type PublicConfig = {
   perpsVenue: PerpVenueId | null;
   /** The settlement stablecoin traders deposit (USDG on Robinhood Chain). */
   perpsCollateral: string;
+  /** Every network perps run on here (Multichain brief): Robinhood Chain first, then Base and Arbitrum once configured. */
+  perpChains: PerpChainInfo[];
   dev: boolean;
 };
 
@@ -45,6 +48,7 @@ export function publicConfig(): PublicConfig {
     perps: perpsEnabled(),
     perpsVenue: perpsVenue(),
     perpsCollateral: perpCollateralSymbol(),
+    perpChains: perpChainInfos(),
     dev: isDev(),
   };
 }

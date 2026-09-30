@@ -77,7 +77,15 @@ export type PerpPositionPatch = Partial<
   >
 >;
 
+/**
+ * Which chain's rows (Multichain brief): those with this chain id, and — for
+ * the primary network — the ones from before rows carried one (paper, and
+ * actions recorded before chain ids were).
+ */
+export type PerpChainScope = { chainId: number | null; legacy: boolean };
+
 export type PerpPositionQuery = {
+  chain?: PerpChainScope;
   userId?: string;
   address?: string;
   venue?: PerpVenueId;
@@ -101,6 +109,8 @@ export type PerpActionRow = {
   status: PerpActionStatus;
   /** The quote exactly as issued. */
   quote: unknown;
+  /** The chain the action's transactions go to; null on paper, and for actions from before it was recorded (Robinhood Chain's). */
+  chainId?: number | null;
   /** On chain: the AgriPerp order id the request created (decimal string). */
   chainOrderId: string | null;
   /** On chain: when the trader asked for the order back (the chain's time), as the worker saw it. */
@@ -153,14 +163,15 @@ export interface PerpStore {
   updatePosition(id: string, patch: PerpPositionPatch, onlyIf?: PerpPositionStatus[]): Promise<PerpPositionRow | null>;
   listPositions(query: PerpPositionQuery): Promise<PerpPositionRow[]>;
   /** Open interest per symbol and side, USD notional. */
-  openInterest(venue: PerpVenueId): Promise<Array<{ symbol: string; side: PerpSide; size: number }>>;
+  openInterest(venue: PerpVenueId, chain?: PerpChainScope): Promise<Array<{ symbol: string; side: PerpSide; size: number }>>;
   /** Notional opened since `since`, per symbol. */
-  volumeSince(venue: PerpVenueId, since: Date): Promise<Array<{ symbol: string; size: number }>>;
+  volumeSince(venue: PerpVenueId, since: Date, chain?: PerpChainScope): Promise<Array<{ symbol: string; size: number }>>;
 
   insertAction(row: PerpActionInsert): Promise<PerpActionRow>;
   getAction(id: string): Promise<PerpActionRow | null>;
   updateAction(id: string, patch: PerpActionPatch, onlyIf?: PerpActionStatus[]): Promise<PerpActionRow | null>;
   listActions(query: {
+    chain?: PerpChainScope;
     userId?: string;
     statuses?: PerpActionStatus[];
     kinds?: PerpActionKind[];
@@ -201,6 +212,20 @@ const numOrNull = (v: unknown): number | null => (v == null ? null : Number(v));
 const isUuid = (id: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 /** USDC has 6 decimals; float sums beyond that are noise. */
 const usdc = (v: number): number => Math.round(v * 1e6) / 1e6;
+
+/** A chain scope as a SQL condition, its parameter pushed onto `params`. */
+function chainSql(scope: PerpChainScope, params: unknown[]): string {
+  params.push(scope.chainId);
+  const eq = `chain_id = $${params.length}`;
+  return scope.legacy ? `(${eq} or chain_id is null)` : eq;
+}
+
+/** Whether a row's chain id is in scope (the file store's copy of chainSql). */
+export function inChainScope(scope: PerpChainScope | undefined, chainId: number | null | undefined): boolean {
+  if (!scope) return true;
+  if (chainId == null) return scope.legacy;
+  return chainId === scope.chainId;
+}
 
 /* ------------------------------------------------------------------ */
 /* Postgres                                                            */
@@ -249,6 +274,7 @@ const ACTION_COLUMNS: Array<[keyof PerpActionRow, string]> = [
   ['amount', 'amount'],
   ['status', 'status'],
   ['quote', 'quote'],
+  ['chainId', 'chain_id'],
   ['chainOrderId', 'chain_order_id'],
   ['cancelRequestedAt', 'cancel_requested_at'],
   ['txHash', 'tx_hash'],
@@ -306,6 +332,7 @@ function rowToAction(r: Record<string, unknown>): PerpActionRow {
     amount: numOrNull(r.amount),
     status: r.status as PerpActionStatus,
     quote: r.quote ?? null,
+    chainId: numOrNull(r.chain_id),
     chainOrderId: r.chain_order_id == null ? null : String(r.chain_order_id),
     cancelRequestedAt: iso(r.cancel_requested_at),
     txHash: (r.tx_hash as string | null) ?? null,
@@ -458,6 +485,7 @@ export class PgPerpStore implements PerpStore {
       params.push(value);
       where.push(sql.replace('?', `$${params.length}`));
     };
+    if (q.chain) where.push(chainSql(q.chain, params));
     if (q.userId) add('user_id = ?', q.userId);
     if (q.address) add('address = ?', q.address.toLowerCase());
     if (q.venue) add('venue = ?', q.venue);
@@ -473,19 +501,23 @@ export class PgPerpStore implements PerpStore {
     return res.rows.map(rowToPosition);
   }
 
-  async openInterest(venue: PerpVenueId): Promise<Array<{ symbol: string; side: PerpSide; size: number }>> {
+  async openInterest(venue: PerpVenueId, chain?: PerpChainScope): Promise<Array<{ symbol: string; side: PerpSide; size: number }>> {
+    const params: unknown[] = [venue];
+    const scope = chain ? ` and ${chainSql(chain, params)}` : '';
     const res = await this.query(
       `select symbol, side, sum(size) as size from perp_positions
-        where venue = $1 and status = 'open' group by symbol, side`,
-      [venue],
+        where venue = $1 and status = 'open'${scope} group by symbol, side`,
+      params,
     );
     return res.rows.map((r: Record<string, unknown>) => ({ symbol: String(r.symbol), side: r.side as PerpSide, size: num(r.size) }));
   }
 
-  async volumeSince(venue: PerpVenueId, since: Date): Promise<Array<{ symbol: string; size: number }>> {
+  async volumeSince(venue: PerpVenueId, since: Date, chain?: PerpChainScope): Promise<Array<{ symbol: string; size: number }>> {
+    const params: unknown[] = [venue, since];
+    const scope = chain ? ` and ${chainSql(chain, params)}` : '';
     const res = await this.query(
-      'select symbol, sum(size) as size from perp_positions where venue = $1 and opened_at >= $2 group by symbol',
-      [venue, since],
+      `select symbol, sum(size) as size from perp_positions where venue = $1 and opened_at >= $2${scope} group by symbol`,
+      params,
     );
     return res.rows.map((r: Record<string, unknown>) => ({ symbol: String(r.symbol), size: num(r.size) }));
   }
@@ -532,9 +564,10 @@ export class PgPerpStore implements PerpStore {
     return res.rows[0] ? rowToAction(res.rows[0]) : null;
   }
 
-  async listActions(q: { userId?: string; statuses?: PerpActionStatus[]; kinds?: PerpActionKind[]; limit: number }): Promise<PerpActionRow[]> {
+  async listActions(q: { chain?: PerpChainScope; userId?: string; statuses?: PerpActionStatus[]; kinds?: PerpActionKind[]; limit: number }): Promise<PerpActionRow[]> {
     const where: string[] = [];
     const params: unknown[] = [];
+    if (q.chain) where.push(chainSql(q.chain, params));
     if (q.userId) {
       params.push(q.userId);
       where.push(`user_id = $${params.length}`);
@@ -749,7 +782,8 @@ class FilePerpStore implements PerpStore {
     const key = (p: PerpPositionRow) => (q.orderBy === 'closed' ? (p.closedAt ?? p.openedAt) : p.openedAt);
     return this.file
       .read()
-      .positions.filter((p) => (q.userId ? p.userId === q.userId : true))
+      .positions.filter((p) => inChainScope(q.chain, p.chainId))
+      .filter((p) => (q.userId ? p.userId === q.userId : true))
       .filter((p) => (q.address ? p.address === q.address.toLowerCase() : true))
       .filter((p) => (q.venue ? p.venue === q.venue : true))
       .filter((p) => (q.statuses?.length ? q.statuses.includes(p.status) : true))
@@ -759,10 +793,10 @@ class FilePerpStore implements PerpStore {
       .map((p) => structuredClone(p));
   }
 
-  async openInterest(venue: PerpVenueId): Promise<Array<{ symbol: string; side: PerpSide; size: number }>> {
+  async openInterest(venue: PerpVenueId, chain?: PerpChainScope): Promise<Array<{ symbol: string; side: PerpSide; size: number }>> {
     const sums = new Map<string, { symbol: string; side: PerpSide; size: number }>();
     for (const p of this.file.read().positions) {
-      if (p.venue !== venue || p.status !== 'open') continue;
+      if (p.venue !== venue || p.status !== 'open' || !inChainScope(chain, p.chainId)) continue;
       const k = `${p.symbol}:${p.side}`;
       const cur = sums.get(k) ?? { symbol: p.symbol, side: p.side, size: 0 };
       cur.size = usdc(cur.size + p.size);
@@ -771,10 +805,10 @@ class FilePerpStore implements PerpStore {
     return [...sums.values()];
   }
 
-  async volumeSince(venue: PerpVenueId, since: Date): Promise<Array<{ symbol: string; size: number }>> {
+  async volumeSince(venue: PerpVenueId, since: Date, chain?: PerpChainScope): Promise<Array<{ symbol: string; size: number }>> {
     const sums = new Map<string, number>();
     for (const p of this.file.read().positions) {
-      if (p.venue !== venue || Date.parse(p.openedAt) < since.getTime()) continue;
+      if (p.venue !== venue || Date.parse(p.openedAt) < since.getTime() || !inChainScope(chain, p.chainId)) continue;
       sums.set(p.symbol, usdc((sums.get(p.symbol) ?? 0) + p.size));
     }
     return [...sums].map(([symbol, size]) => ({ symbol, size }));
@@ -810,10 +844,11 @@ class FilePerpStore implements PerpStore {
     return structuredClone(row);
   }
 
-  async listActions(q: { userId?: string; statuses?: PerpActionStatus[]; kinds?: PerpActionKind[]; limit: number }): Promise<PerpActionRow[]> {
+  async listActions(q: { chain?: PerpChainScope; userId?: string; statuses?: PerpActionStatus[]; kinds?: PerpActionKind[]; limit: number }): Promise<PerpActionRow[]> {
     return this.file
       .read()
-      .actions.filter((a) => (q.userId ? a.userId === q.userId : true))
+      .actions.filter((a) => inChainScope(q.chain, a.chainId))
+      .filter((a) => (q.userId ? a.userId === q.userId : true))
       .filter((a) => (q.statuses?.length ? q.statuses.includes(a.status) : true))
       .filter((a) => (q.kinds?.length ? q.kinds.includes(a.kind) : true))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

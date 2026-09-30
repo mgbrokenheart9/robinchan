@@ -6,6 +6,7 @@ import { formatUsd, shortAddress } from '@robinchan/shared';
 import { ExternalIcon } from '@/components/icons';
 import { ErrorState, UpdatedAt } from '@/components/states';
 import { Pill, Skeleton, cx } from '@/components/ui';
+import { perpPath, usePerpNetwork } from '@/lib/perpNetwork';
 import { useApi } from '@/lib/useApi';
 
 /**
@@ -15,7 +16,8 @@ import { useApi } from '@/lib/useApi';
  * wallet, so it's outside the connect gate.
  */
 export function VenueCard() {
-  const venue = useApi<PerpVenueInfo>('/api/perps/venue', { intervalMs: 60_000 });
+  const { network } = usePerpNetwork();
+  const venue = useApi<PerpVenueInfo>(perpPath('/api/perps/venue', network), { intervalMs: 60_000 });
 
   if (venue.status === 'loading') {
     return (
@@ -36,7 +38,7 @@ export function VenueCard() {
   const v = venue.data;
   if (v.venue !== 'agri-perp' || !v.contracts) return null;
   const explorer = v.chain?.explorerUrl ?? null;
-  const network = v.chain ? `${v.chain.name}${v.chain.mainnet ? ' mainnet' : ''} · chain ${v.chain.id}` : 'no network';
+  const chainLabel = v.chain ? `${v.chain.name}${v.chain.mainnet ? ' mainnet' : ''} · chain ${v.chain.id}` : 'no network';
 
   const contracts: Array<{ name: string; role: string; address: string }> = [
     { name: 'AgriPerp', role: 'Positions, orders and liquidations', address: v.contracts.perp },
@@ -52,14 +54,14 @@ export function VenueCard() {
       <header className="flex min-h-[52px] flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border-soft px-5 py-3">
         <h2 className="t-eyebrow">Verify on chain</h2>
         <div className="flex items-center gap-2">
-          <Pill tone={v.chain?.mainnet ? 'accent' : 'muted'}>{network}</Pill>
+          <Pill tone={v.chain?.mainnet ? 'accent' : 'muted'}>{chainLabel}</Pill>
           <UpdatedAt asOf={venue.asOf} stale={venue.stale} />
         </div>
       </header>
 
       <div className={cx('space-y-5 px-5 py-4', venue.stale && 'is-stale')}>
         <p className="text-[13px] leading-relaxed text-text-2">
-          Every position, deposit and fill happens in these contracts, priced by Chainlink Data Feeds. Nothing is custodied off chain: check any
+          Every position, deposit and fill happens in these contracts, priced by Chainlink Data Feeds (and, for the agri markets, Robinchan&apos;s posted Yahoo Finance quotes). Nothing is custodied off chain: check any
           of it on {explorer ? 'the block explorer' : 'chain'}.
         </p>
 
@@ -110,7 +112,7 @@ export function VenueCard() {
 
         {v.feeds.length ? (
           <div className="border-t border-border-soft pt-4">
-            <p className="t-eyebrow mb-3">Chainlink price feeds</p>
+            <p className="t-eyebrow mb-3">Price feeds</p>
             <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
               {v.feeds.map((f) => (
                 <li key={f.symbol} className="flex min-w-0 items-baseline justify-between gap-3">

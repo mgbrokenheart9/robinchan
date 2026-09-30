@@ -6,6 +6,7 @@ import { publicClient } from '../chain';
 import { PYTH_ROUND_FEED_ABI } from './abi';
 import { chainNow } from './chain';
 import { perpsVenue } from './config';
+import { secondaryDeployment } from './network';
 import { keeperWallet } from './keeper';
 
 /**
@@ -141,7 +142,8 @@ function warnOnce(key: string, message: string, everyMs = 3_600_000): void {
 export async function runPythRounds(): Promise<{ pushed: number; rolled: number; scheduled: number }> {
   const out = { pushed: 0, rolled: 0, scheduled: 0 };
   const markets = pythRoundMarkets();
-  if (perpsVenue() !== 'agri-perp' || markets.length === 0) return out;
+  // Robinhood Chain's own feeds: no other network has them.
+  if (secondaryDeployment() || perpsVenue() !== 'agri-perp' || markets.length === 0) return out;
   if (!hermesKey()) {
     warnOnce('pyth:key', '[perps] PYTH_API_KEY is not set: the Pyth agri feeds get no rounds');
     return out;

@@ -1,9 +1,10 @@
-import { perpOracleFeeds, answerToUsd } from '@robinchan/shared';
+import { PERP_NETWORK_DEFS, answerToUsd } from '@robinchan/shared';
 import { createPublicClient, defineChain, http, type Hex, type PublicClient } from 'viem';
 
 import { publicClient } from '../chain';
 import { CHAINLINK_FEED_ABI } from './abi';
 import { perpOracleRpcUrl, perpsOracleMode, perpsVenue } from './config';
+import { perpNetwork, secondaryDeployment, tradableHere } from './network';
 import type { OraclePrice } from './prices';
 
 /**
@@ -12,13 +13,14 @@ import type { OraclePrice } from './prices';
  * subscription — the feeds are public contracts.
  */
 
-let oracle: { url: string; client: PublicClient } | null = null;
+/** Per network: its mainnet, read through one client per endpoint. */
+const oracles = new Map<string, PublicClient>();
 
-/** Robinhood Chain mainnet, where the registry's feeds live — with Multicall3, so reads batch. */
-const robinhoodChain = (url: string) =>
+/** A network's mainnet, where its registry's feeds live — with Multicall3, so reads batch. */
+const mainnetChain = (url: string) =>
   defineChain({
-    id: 4663,
-    name: 'Robinhood Chain',
+    id: PERP_NETWORK_DEFS[perpNetwork()].mainnet.id,
+    name: PERP_NETWORK_DEFS[perpNetwork()].mainnet.name,
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
     rpcUrls: { default: { http: [url] } },
     contracts: { multicall3: { address: '0xcA11bde05977b3631167028862bE2a173976CA11' } },
@@ -28,24 +30,26 @@ const robinhoodChain = (url: string) =>
  * Where the feeds are read. On the on-chain venue against a live oracle,
  * that's the app's own chain (the contracts read the same feeds). Everywhere
  * else — paper, a local chain whose mock feeds mirror live prices, a server
- * with no venue — it's Robinhood Chain mainnet, where anyone can read them.
+ * with no venue — it's the network's mainnet (Robinhood Chain's, Base's…),
+ * where anyone can read them.
  */
 export function oracleClient(): PublicClient | null {
   if (perpsVenue() === 'agri-perp' && perpsOracleMode() === 'chainlink') return publicClient();
   const url = perpOracleRpcUrl();
-  if (oracle?.url !== url) {
-    oracle = {
-      url,
-      client: createPublicClient({ chain: robinhoodChain(url), transport: http(url, { timeout: 8_000, retryCount: 1 }), batch: { multicall: true } }) as PublicClient,
-    };
+  const key = `${perpNetwork()}:${url}`;
+  let client = oracles.get(key);
+  if (!client) {
+    client = createPublicClient({ chain: mainnetChain(url), transport: http(url, { timeout: 8_000, retryCount: 1 }), batch: { multicall: true } }) as PublicClient;
+    oracles.set(key, client);
   }
-  return oracle.client;
+  return client;
 }
 
 const decimalsCache = new Map<string, number>();
 
 async function decimalsOf(client: PublicClient, feed: Hex): Promise<number> {
-  const key = feed.toLowerCase();
+  // By chain too: two chains can have a contract at one address (local nodes do).
+  const key = `${client.chain?.id ?? 0}:${feed.toLowerCase()}`;
   const known = decimalsCache.get(key);
   if (known != null) return known;
   const value = Number(await client.readContract({ address: feed, abi: CHAINLINK_FEED_ABI, functionName: 'decimals' }));
@@ -53,9 +57,35 @@ async function decimalsOf(client: PublicClient, feed: Hex): Promise<number> {
   return value;
 }
 
+/** The network in scope's tradable markets and the feed each is priced by. */
+export function oracleFeedsHere(): Array<{ symbol: string; feed: Hex; ownChain: boolean }> {
+  return tradableHere().map((m) => ({
+    symbol: m.symbol,
+    feed: m.contracts[0]!.feedId,
+    // Round feeds (the operator's, a pool's average) are deployed on the network's own chain.
+    ownChain: Boolean(m.reported || m.pyth || m.twap),
+  }));
+}
+
+/**
+ * Every tradable market's latest price on the network in scope. With mock
+ * feeds on a network other than the primary (a testnet), its Chainlink
+ * markets are read from its mainnet and its round feeds from its own chain,
+ * where they're deployed.
+ */
+export async function readNetworkOraclePrices(): Promise<OraclePrice[]> {
+  const feeds = oracleFeedsHere();
+  if (!secondaryDeployment() || perpsOracleMode() !== 'mock') return readOraclePrices(feeds);
+  const [mainnet, own] = await Promise.all([
+    readOraclePrices(feeds.filter((f) => !f.ownChain)),
+    readOraclePrices(feeds.filter((f) => f.ownChain), publicClient()),
+  ]);
+  return [...mainnet, ...own];
+}
+
 /** Every listed market's latest round, read in one multicall (one call each where Multicall3 is missing). */
 export async function readOraclePrices(
-  feeds: Array<{ symbol: string; feed: Hex }> = perpOracleFeeds(),
+  feeds: Array<{ symbol: string; feed: Hex }> = oracleFeedsHere(),
   client: PublicClient | null = oracleClient(),
 ): Promise<OraclePrice[]> {
   if (!client || !feeds.length) return [];

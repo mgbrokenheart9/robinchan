@@ -73,7 +73,9 @@ export function PerpProgress({ state, kind }: { state: PerpSignerState; kind: 'o
               ? `You asked for it back: it’s released by ${releaseTime(r.cancelRequestedAt)}, unless Chainlink had already observed its price — then it fills at it.`
               : r.symbol && perpMarket(r.symbol)?.twap
                 ? `Request landed. It fills at the first 15-minute ${r.symbol} average that starts after it — about 16 minutes on.`
-                : `Request landed. It fills at Chainlink’s next ${r.symbol ?? ''} price — when the price moves 0.5%, or within a day.`}
+                : r.symbol && perpMarket(r.symbol)?.reported
+                  ? `Request landed. It fills at the next ${r.symbol} price Robinchan posts — usually within minutes while the exchange trades.`
+                  : `Request landed. It fills at Chainlink’s next ${r.symbol ?? ''} price — when the price moves 0.5%, or within a day.`}
         </p>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-text-3">
           {link}

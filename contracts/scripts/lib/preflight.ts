@@ -5,7 +5,7 @@
  * check passes).
  *
  * Each market's feed is checked two ways: against Chainlink's own directory
- * of Robinhood Chain feeds (the address has to be the proxy Chainlink lists
+ * of the chain's feeds (Robinhood Chain's, Base's, Arbitrum's) (the address has to be the proxy Chainlink lists
  * for it — a look-alike contract with the same description fails), and on
  * chain (its description, decimals, observation times and last round).
  */
@@ -39,6 +39,10 @@ export type PreflightInput = {
   seedUsdc?: string;
   /** Chainlink's feed directory for the chain; the Robinhood Chain mainnet one by default. */
   directoryUrl?: string;
+  /** The markets to check; deploy/markets.json (Robinhood Chain's) by default. */
+  markets?: DeployMarket[];
+  /** The chain, as the checks name it. */
+  network?: string;
 };
 
 export const CHAINLINK_DIRECTORY = 'https://reference-data-directory.vercel.app/feeds-robinhood-mainnet.json';
@@ -75,7 +79,7 @@ const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const short = (e: unknown) => (e as Error).message.split('\n')[0]?.slice(0, 140) ?? String(e);
 const hours = (sec: number) => (sec < 5_400 ? `${Math.round(sec / 60)} min` : `${(sec / 3_600).toFixed(1)} h`);
 
-type DeployMarket = { symbol: string; feed: { proxy: Address; description: string } };
+export type DeployMarket = { symbol: string; feed: { proxy: Address; description: string } };
 
 /** The markets deploy/markets.json lists, with their Chainlink feeds. */
 export function deployMarkets(): DeployMarket[] {
@@ -102,7 +106,8 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
   const now = Number(timestamp);
 
   /* ---- Feeds ---- */
-  const markets = deployMarkets();
+  const markets = input.markets ?? deployMarkets();
+  const chainName = input.network ?? 'Robinhood Chain';
   if (input.feeds === 'mock') {
     add('feeds', input.mainnet ? 'fail' : 'warn', `MockAggregators for ${markets.length} markets: anyone can post a price to them — a testnet only`);
   } else {
@@ -112,7 +117,7 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
         const res = await fetch(input.directoryUrl ?? CHAINLINK_DIRECTORY, { signal: AbortSignal.timeout(20_000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         directory = (await res.json()) as DirectoryEntry[];
-        add('chainlink: directory', 'ok', `${directory.length} feeds listed for Robinhood Chain`);
+        add('chainlink: directory', 'ok', `${directory.length} feeds listed for ${chainName}`);
       } catch (err) {
         add('chainlink: directory', 'fail', `couldn't read Chainlink's feed directory (${short(err)}); set CHAINLINK_DIRECTORY_URL`);
       }
@@ -123,7 +128,7 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
       if (directory) {
         const entry = directory.find((e) => e.proxyAddress?.toLowerCase() === proxy.toLowerCase());
         if (!entry) {
-          add(name, 'fail', `${proxy} isn't a feed Chainlink lists for Robinhood Chain`);
+          add(name, 'fail', `${proxy} isn't a feed Chainlink lists for ${chainName}`);
           continue;
         }
         if (entry.docs?.shutdownDate || /deprecat/i.test(entry.feedCategory ?? '')) {

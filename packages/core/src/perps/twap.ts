@@ -6,6 +6,7 @@ import { publicClient } from '../chain';
 import { TWAP_ROUND_FEED_ABI } from './abi';
 import { chainNow, chainState } from './chain';
 import { perpsVenue } from './config';
+import { secondaryDeployment } from './network';
 import { keeperWallet, waitingOrderMarkets } from './keeper';
 
 /**
@@ -65,7 +66,8 @@ function warnOnce(key: string, message: string, everyMs = 300_000): void {
 export async function runTwapRounds(): Promise<{ updated: number; rounds: number; made: Array<{ symbol: string; usd: number }> }> {
   const out = { updated: 0, rounds: 0, made: [] as Array<{ symbol: string; usd: number }> };
   const markets = twapRoundMarkets();
-  if (perpsVenue() !== 'agri-perp' || markets.length === 0) return out;
+  // Robinhood Chain's own feeds: no other network has them.
+  if (secondaryDeployment() || perpsVenue() !== 'agri-perp' || markets.length === 0) return out;
   const client = publicClient();
   const wallet = keeperWallet();
   if (!client || !wallet) return out;

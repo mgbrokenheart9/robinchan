@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { PerpCategory, PerpMarket } from '@robinchan/shared';
 import { RH_TOKEN_WARNING, TWAP_BADGE, direction, formatPct, formatUsd, formatUsdCompact, perpComingSoon, perpMarket } from '@robinchan/shared';
 
-import { AgriIcon, ClockIcon, CryptoIcon, LockIcon, RhTokensIcon, StocksIcon } from '@/components/icons';
+import { AgriIcon, ClockIcon, CommoditiesIcon, CryptoIcon, LockIcon, RhTokensIcon, StocksIcon } from '@/components/icons';
 import { TickerLogo, hasTickerLogo } from '@/components/TickerCard';
 import { ErrorState, UpdatedAt } from '@/components/states';
 import { PulseDot, Skeleton, cx } from '@/components/ui';
@@ -17,6 +17,7 @@ const CATEGORIES: Array<{ id: PerpCategory; label: string; Icon: typeof AgriIcon
   { id: 'crypto', label: 'Crypto', Icon: CryptoIcon },
   { id: 'stocks', label: 'Stocks', Icon: StocksIcon },
   { id: 'rh', label: 'RH Tokens', Icon: RhTokensIcon },
+  { id: 'commodities', label: 'Metals & Oil', Icon: CommoditiesIcon },
 ];
 
 /** Where an RH Token's price comes from: its own pool, averaged (RH Tokens brief). */
@@ -44,10 +45,13 @@ function RhWarning() {
 }
 
 /**
- * The market selector (brief §8A): four categories, then every market in
+ * The market selector (brief §8A): the categories, then every market in
  * the chosen one as a pill with its price and 24h change. Markets without an
  * oracle are listed too — dimmed, with the reason one click away — so it's
- * clear corn or palm oil weren't forgotten, just not priceable yet.
+ * clear corn or palm oil weren't forgotten, just not priceable yet. A
+ * category another network has (Multichain brief: RH Tokens only on
+ * Robinhood Chain, gold and oil only on Base and Arbitrum) is greyed out,
+ * with where to find it.
  */
 export function MarketBoard({
   markets,
@@ -55,12 +59,15 @@ export function MarketBoard({
   symbol,
   onCategory,
   onSymbol,
+  elsewhere = {},
 }: {
   markets: Resource<PerpMarket[]>;
   category: PerpCategory;
   symbol: string;
   onCategory: (c: PerpCategory) => void;
   onSymbol: (s: string) => void;
+  /** Categories this network doesn't have, each with where it is instead. */
+  elsewhere?: Partial<Record<PerpCategory, string>>;
 }) {
   const all = markets.data ?? [];
   const inCategory = all.filter((m) => m.category === category);
@@ -77,7 +84,7 @@ export function MarketBoard({
   return (
     <section className="card overflow-hidden" aria-label="Markets">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
-        {/* Four tabs outgrow a phone: the row scrolls rather than clipping the last. */}
+        {/* The tabs outgrow a phone: the row scrolls rather than clipping the last. */}
         <div
           ref={tabs}
           className="flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border p-1 [scrollbar-width:none]"
@@ -87,6 +94,24 @@ export function MarketBoard({
           {CATEGORIES.map(({ id, label, Icon }) => {
             const live = all.filter((m) => m.category === id && m.status !== 'unavailable').length;
             const total = all.filter((m) => m.category === id).length;
+            const away = elsewhere[id];
+            if (away) {
+              return (
+                <span
+                  key={id}
+                  role="tab"
+                  aria-selected={false}
+                  aria-disabled
+                  title={away}
+                  className="flex min-h-[34px] shrink-0 cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[13px] text-text-3 opacity-50"
+                >
+                  <Icon />
+                  {label}
+                  <LockIcon width={11} height={11} />
+                  <span className="sr-only"> — {away}</span>
+                </span>
+              );
+            }
             return (
               <button
                 key={id}
@@ -103,7 +128,7 @@ export function MarketBoard({
                 {label}
                 {total ? (
                   <span className={cx('font-mono text-[10.5px]', category === id ? 'text-accent-ink/70' : 'text-text-3')}>
-                    {live === 0 && (id === 'agri' || id === 'rh') ? 'soon' : live < total ? `${live}/${total}` : total}
+                    {live === 0 && (id === 'agri' || id === 'rh' || id === 'commodities') ? 'soon' : live < total ? `${live}/${total}` : total}
                   </span>
                 ) : null}
               </button>
@@ -114,7 +139,9 @@ export function MarketBoard({
           {category === 'rh' ? (
             <TwapBadge />
           ) : (
-            <span className="hidden font-mono text-[10.5px] uppercase tracking-[0.1em] text-text-3 sm:inline">Prices · Chainlink</span>
+            <span className="hidden font-mono text-[10.5px] uppercase tracking-[0.1em] text-text-3 sm:inline">
+              {category === 'agri' ? 'Prices · Robinchan, from Yahoo Finance' : 'Prices · Chainlink'}
+            </span>
           )}
           <UpdatedAt asOf={markets.asOf} stale={markets.stale} />
         </div>
@@ -217,7 +244,7 @@ export function MarketHeader({ market, loading }: { market: PerpMarket | null; l
     ['Leverage', `up to ${m.maxLeverage}×`],
     ['Hours', m.hours],
   ];
-  const maxPosition = perpMarket(m.symbol)?.maxPositionUsd;
+  const maxPosition = m.maxPositionUsd ?? perpMarket(m.symbol)?.maxPositionUsd;
   if (maxPosition != null) stats.push(['Max position', formatUsd(maxPosition), 'The largest one position may be, collateral × leverage.']);
   if (m.contract) {
     stats.push([

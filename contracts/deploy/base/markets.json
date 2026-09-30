@@ -1,0 +1,24 @@
+[
+  {
+    "symbol": "XAU",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x5213eBB69743b85644dbB6E25cdF994aFBb8cF31",
+      "description": "XAU / USD"
+    },
+    "mockPrice": 4170
+  },
+  {
+    "symbol": "XAG",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x7dBC779B2A6F9B9AaB83a2dED78A2F7E9e203f0c",
+      "description": "XAG / USD"
+    },
+    "mockPrice": 61
+  }
+]

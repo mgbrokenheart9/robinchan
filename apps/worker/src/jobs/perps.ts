@@ -1,23 +1,26 @@
-import type { Candle, CandleInterval, CandleSeries } from '@robinchan/shared';
-import { CANDLE_INTERVALS, perpSessionOpen, scheduledContract } from '@robinchan/shared';
+import type { Candle, CandleInterval, CandleSeries, PerpNetwork } from '@robinchan/shared';
+import { CANDLE_INTERVALS, PRIMARY_PERP_NETWORK, perpSessionOpen, scheduledContract } from '@robinchan/shared';
 import {
   CANDLES_KEPT,
-  DAY_AGO_KEY,
   INTERVAL_SEC,
   PERP_CANDLES_TTL_SEC,
   applyTick,
   bucketStart,
+  dayAgoKey,
   expirePerpQuotes,
   keeperKey,
   maintainPaperMarkets,
   oracleClient,
   perpCandlesKey,
+  perpChainScope,
   perpMarks,
+  perpNetworks,
   perpsEnabled,
   perpsOracleMode,
   perpsVenue,
   priceDayAgo,
-  readOraclePrices,
+  publicClient,
+  readNetworkOraclePrices,
   roundHistory,
   runChainKeeper,
   runMockOracle,
@@ -29,7 +32,9 @@ import {
   runReportedRounds,
   runRhPools,
   runTwapRounds,
+  secondaryDeployment,
   stepBars,
+  withPerpNetwork,
   writeFeedPrices,
   type Mark,
   type OraclePrice,
@@ -57,12 +62,34 @@ import { log } from '../lib/log.js';
  *
  * Both keep running with the flag off while positions are still open, so
  * switching perps off never strands a position without its keeper.
+ *
+ * Each runs once per network perps are on here (Multichain brief) —
+ * Robinhood Chain, and Base and Arbitrum once their RPC is set — side by
+ * side, each inside its network's scope: one chain's RPC failing doesn't
+ * hold up another's liquidations. The RH Tokens' and Pyth's feeds exist only
+ * on Robinhood Chain.
  */
+
+const scopeOf = (network: PerpNetwork): string => (network === PRIMARY_PERP_NETWORK ? 'perps' : `perps:${network}`);
+
+/**
+ * `job` on every network, side by side, each in its own scope. A network
+ * that fails is logged under its name; the others carry on. On the primary
+ * alone a failure is thrown, as it always was, for the job's own log line.
+ */
+async function eachNetwork(name: string, job: (network: PerpNetwork) => Promise<void>): Promise<void> {
+  const networks = perpNetworks();
+  if (networks.length === 1) return withPerpNetwork(PRIMARY_PERP_NETWORK, () => job(PRIMARY_PERP_NETWORK));
+  const results = await Promise.allSettled(networks.map((network) => withPerpNetwork(network, () => job(network))));
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') log.error(scopeOf(networks[i] as PerpNetwork), `${name} failed: ${describeError(r.reason)}`);
+  });
+}
 
 async function active(): Promise<boolean> {
   if (perpsEnabled()) return true;
   if (!perpsVenue()) return false;
-  const open = await getPerpStore().listPositions({ statuses: ['open'], limit: 1 });
+  const open = await getPerpStore().listPositions({ chain: perpChainScope(), statuses: ['open'], limit: 1 });
   return open.length > 0;
 }
 
@@ -71,17 +98,22 @@ async function active(): Promise<boolean> {
 /* ------------------------------------------------------------------ */
 
 export async function runPerpPrices(): Promise<void> {
-  if (!(await active())) return;
-  let prices: OraclePrice[];
-  try {
-    prices = await callProvider({ id: 'chainlink', configured: true }, () => readOraclePrices());
-  } catch (err) {
-    if (!fixturesEnabled()) throw err;
-    prices = fixtureOraclePrices();
-    log.debug('perps', `Chainlink unreachable, using fixtures (${(err as Error).message})`);
-  }
-  await writeFeedPrices(prices);
-  await updateCandles(await perpMarks());
+  await eachNetwork('prices', async (network) => {
+    if (!(await active())) return;
+    let prices: OraclePrice[];
+    try {
+      prices = await callProvider({ id: network === PRIMARY_PERP_NETWORK ? 'chainlink' : `chainlink-${network}`, configured: true }, () =>
+        readNetworkOraclePrices(),
+      );
+    } catch (err) {
+      // Fixtures stand in for Robinhood Chain's markets only.
+      if (!fixturesEnabled() || network !== PRIMARY_PERP_NETWORK) throw err;
+      prices = fixtureOraclePrices();
+      log.debug('perps', `Chainlink unreachable, using fixtures (${(err as Error).message})`);
+    }
+    await writeFeedPrices(prices);
+    await updateCandles(network, await perpMarks());
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,8 +121,9 @@ export async function runPerpPrices(): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 type Book = { series: Map<CandleInterval, Candle[]> };
-const books = new Map<string, Book>();
-let lastFlush = 0;
+/** Per network, per market. */
+const books = new Map<PerpNetwork, Map<string, Book>>();
+const lastFlush = new Map<PerpNetwork, number>();
 const FLUSH_MS = 60_000;
 
 async function loadBook(mark: Mark): Promise<Book> {
@@ -111,7 +144,7 @@ async function loadBook(mark: Mark): Promise<Book> {
  * First bars for a market that has none, so the chart and the 24h change
  * aren't empty for a day after launch. In dev, the fixture walk itself,
  * sampled back in time; otherwise the feed's own rounds from the last two
- * days (PERPS_BACKFILL_HOURS), read from Robinhood Chain.
+ * days (PERPS_BACKFILL_HOURS), read from the chain the feed is on.
  */
 async function seedHistory(mark: Mark, book: Book): Promise<void> {
   const nowMs = Date.now();
@@ -133,7 +166,8 @@ async function seedHistory(mark: Mark, book: Book): Promise<void> {
     return;
   }
   const feed = scheduledContract(mark.def)?.feedId;
-  const client = oracleClient();
+  // A testnet's round feeds are on the testnet itself, not on the mainnet its mock oracle reads.
+  const client = secondaryDeployment() && mark.def.reported ? publicClient() : oracleClient();
   if (!feed || !client) return;
   const hours = Number(process.env.PERPS_BACKFILL_HOURS ?? 48);
   const since = now - hours * 3600;
@@ -146,13 +180,18 @@ async function seedHistory(mark: Mark, book: Book): Promise<void> {
   }
 }
 
-async function updateCandles(allMarks: Map<string, Mark>): Promise<void> {
+async function updateCandles(network: PerpNetwork, allMarks: Map<string, Mark>): Promise<void> {
   const nowSec = Math.floor(Date.now() / 1000);
+  let own = books.get(network);
+  if (!own) {
+    own = new Map();
+    books.set(network, own);
+  }
   for (const mark of allMarks.values()) {
-    let book = books.get(mark.symbol);
+    let book = own.get(mark.symbol);
     if (!book) {
       book = await loadBook(mark);
-      books.set(mark.symbol, book);
+      own.set(mark.symbol, book);
     }
     // A shut market's last price isn't a new trade. An open one's latest
     // round is the price of record until the next: it holds, bar to bar.
@@ -161,16 +200,17 @@ async function updateCandles(allMarks: Map<string, Mark>): Promise<void> {
       book.series.set(interval, applyTick(book.series.get(interval) ?? [], interval, nowSec, mark.price));
     }
   }
-  if (Date.now() - lastFlush >= FLUSH_MS) {
-    await flushCandles(nowSec);
-    lastFlush = Date.now();
+  if (Date.now() - (lastFlush.get(network) ?? 0) >= FLUSH_MS) {
+    await flushCandles(own, nowSec);
+    lastFlush.set(network, Date.now());
   }
 }
 
-async function flushCandles(nowSec: number): Promise<void> {
+/** One network's bars into the cache — its keys, as the scope it runs in names them. */
+async function flushCandles(own: Map<string, Book>, nowSec: number): Promise<void> {
   const entries: Array<{ key: string; value: CandleSeries; ttlSec: number }> = [];
   const dayAgo: Record<string, number> = {};
-  for (const [symbol, book] of books) {
+  for (const [symbol, book] of own) {
     for (const [interval, candles] of book.series) {
       if (!candles.length) continue;
       entries.push({
@@ -183,7 +223,7 @@ async function flushCandles(nowSec: number): Promise<void> {
     if (ref != null) dayAgo[symbol] = ref;
   }
   if (!entries.length) return;
-  await getCache().setMany([...entries, { key: DAY_AGO_KEY, value: dayAgo, ttlSec: 3600 }]);
+  await getCache().setMany([...entries, { key: dayAgoKey(), value: dayAgo, ttlSec: 3600 }]);
   log.debug('perps', `${entries.length} chart series flushed`);
 }
 
@@ -192,38 +232,41 @@ async function flushCandles(nowSec: number): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 export async function runPerpUpkeep(): Promise<void> {
-  if (!(await active())) return;
-  const venue = perpsVenue();
-  const expired = await expirePerpQuotes();
-  const moved: string[] = [];
-  if (expired) moved.push(`${expired} quotes expired`);
+  await eachNetwork('upkeep', async (network) => {
+    if (!(await active())) return;
+    const scope = scopeOf(network);
+    const venue = perpsVenue();
+    const expired = await expirePerpQuotes();
+    const moved: string[] = [];
+    if (expired) moved.push(`${expired} quotes expired`);
 
-  if (venue === 'paper') {
-    const changed = await maintainPaperMarkets();
-    if (changed.length) moved.push(`funding rate changed: ${changed.join(', ')}`);
-    const keeper = await runPaperKeeper();
-    if (keeper.liquidated) moved.push(`${keeper.liquidated} paper positions liquidated`);
-  } else if (venue === 'agri-perp') {
-    // Orders run on their own, faster job (runPerpOrders). Each part runs
-    // whatever the others did: an RPC refusing the indexer's reads mustn't
-    // hold up liquidations.
-    const monitor = await part('monitor', runPerpMonitor);
-    if (monitor && (monitor.done || monitor.failed)) moved.push(`requests: ${monitor.done} settled, ${monitor.failed} failed`);
-    const indexed = await part('indexer', runPerpIndexer);
-    if (indexed?.events) moved.push(`${indexed.events} contract events indexed`);
-    const keeper = await part('keeper', runChainKeeper);
-    if (keeper?.settled) moved.push(`${keeper.settled} positions on delisted markets settled`);
-    if (keeper?.txs.length) moved.push(`${keeper.liquidated} positions liquidated (${keeper.txs.join(', ')})`);
-    else if (keeper?.candidates && !keeperKey()) log.warn('perps', `${keeper.candidates} liquidatable positions, but no KEEPER_PRIVATE_KEY — anyone may liquidate them`);
-  }
-  if (moved.length) log.info('perps', moved.join('; '));
+    if (venue === 'paper') {
+      const changed = await maintainPaperMarkets();
+      if (changed.length) moved.push(`funding rate changed: ${changed.join(', ')}`);
+      const keeper = await runPaperKeeper();
+      if (keeper.liquidated) moved.push(`${keeper.liquidated} paper positions liquidated`);
+    } else if (venue === 'agri-perp') {
+      // Orders run on their own, faster job (runPerpOrders). Each part runs
+      // whatever the others did: an RPC refusing the indexer's reads mustn't
+      // hold up liquidations.
+      const monitor = await part(scope, 'monitor', runPerpMonitor);
+      if (monitor && (monitor.done || monitor.failed)) moved.push(`requests: ${monitor.done} settled, ${monitor.failed} failed`);
+      const indexed = await part(scope, 'indexer', runPerpIndexer);
+      if (indexed?.events) moved.push(`${indexed.events} contract events indexed`);
+      const keeper = await part(scope, 'keeper', runChainKeeper);
+      if (keeper?.settled) moved.push(`${keeper.settled} positions on delisted markets settled`);
+      if (keeper?.txs.length) moved.push(`${keeper.liquidated} positions liquidated (${keeper.txs.join(', ')})`);
+      else if (keeper?.candidates && !keeperKey()) log.warn(scope, `${keeper.candidates} liquidatable positions, but no KEEPER_PRIVATE_KEY — anyone may liquidate them`);
+    }
+    if (moved.length) log.info(scope, moved.join('; '));
+  });
 }
 
-async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
+async function part<T>(scope: string, name: string, run: () => Promise<T>): Promise<T | null> {
   try {
     return await run();
   } catch (err) {
-    log.error('perps', `${name} failed: ${describeError(err)}`);
+    log.error(scope, `${name} failed: ${describeError(err)}`);
     return null;
   }
 }
@@ -232,6 +275,7 @@ async function part<T>(name: string, run: () => Promise<T>): Promise<T | null> {
  * The agri markets' Pyth feeds: each round brought on chain from Hermes as
  * its slot opens, and the futures rolls carried out (core/perps/pyth.ts).
  * Nothing to do until a PythRoundFeed is deployed and in the registry.
+ * Robinhood Chain only.
  */
 export async function runPythFeeds(): Promise<void> {
   if (perpsVenue() !== 'agri-perp' || !(await active())) return;
@@ -246,23 +290,26 @@ export async function runPythFeeds(): Promise<void> {
 /**
  * The agri markets the operator prices: Yahoo Finance quotes posted with the
  * time the exchange quoted them, and the contract-month rolls
- * (core/perps/reported.ts). Nothing to do until a ReportedRoundFeed is
- * deployed and in the registry.
+ * (core/perps/reported.ts) — on every network, each to its own feeds.
+ * Nothing to do until a ReportedRoundFeed is deployed and in the registry.
  */
 export async function runReportedFeeds(): Promise<void> {
-  if (perpsVenue() !== 'agri-perp' || !(await active())) return;
-  const r = await runReportedRounds();
-  const moved: string[] = [];
-  if (r.reported) moved.push(`${r.reported} agri prices posted`);
-  if (r.rolled) moved.push(`${r.rolled} agri months rolled`);
-  if (moved.length) log.info('perps', moved.join('; '));
+  await eachNetwork('agri prices', async (network) => {
+    if (perpsVenue() !== 'agri-perp' || !(await active())) return;
+    const r = await runReportedRounds();
+    const moved: string[] = [];
+    if (r.reported) moved.push(`${r.reported} agri prices posted`);
+    if (r.rolled) moved.push(`${r.rolled} agri months rolled`);
+    if (moved.length) log.info(scopeOf(network), moved.join('; '));
+  });
 }
 
 /**
  * The RH Tokens' feeds: `update()` on each deployed TwapRoundFeed once its
  * minute is up (core/perps/twap.ts). The pool's own cumulative price makes
  * each 15-minute average; the keeper only keeps the record going. Nothing to
- * do until a TwapRoundFeed is deployed and in the registry.
+ * do until a TwapRoundFeed is deployed and in the registry. Robinhood Chain
+ * only: the tokens exist nowhere else.
  */
 export async function runTwapFeeds(): Promise<void> {
   if (perpsVenue() !== 'agri-perp' || !(await active())) return;
@@ -288,18 +335,21 @@ export async function runRhTokenPools(): Promise<void> {
 /**
  * On chain, the keeper's order execution, on its own short schedule: an
  * order fills within 20 s of its round or the contract cancels it, so it
- * can't wait behind the rest of the upkeep. In mock mode (a local chain) the
- * worker first posts the cached prices into the local feeds.
+ * can't wait behind the rest of the upkeep. In mock mode (a local chain or a
+ * testnet) the worker first posts the cached prices into the mock feeds.
  */
 export async function runPerpOrders(): Promise<void> {
-  if (perpsVenue() !== 'agri-perp' || !(await active())) return;
-  const moved: string[] = [];
-  if (perpsOracleMode() === 'mock') {
-    const posted = await runMockOracle();
-    if (posted) log.debug('perps', `${posted} mock rounds posted`);
-  }
-  const orders = await runOrderExecutor();
-  if (orders.executed) moved.push(`${orders.executed} orders executed`);
-  if (orders.cancelled) moved.push(`${orders.cancelled} orders expired, cancelled or released`);
-  if (moved.length) log.info('perps', moved.join('; '));
+  await eachNetwork('orders', async (network) => {
+    if (perpsVenue() !== 'agri-perp' || !(await active())) return;
+    const scope = scopeOf(network);
+    const moved: string[] = [];
+    if (perpsOracleMode() === 'mock') {
+      const posted = await runMockOracle();
+      if (posted) log.debug(scope, `${posted} mock rounds posted`);
+    }
+    const orders = await runOrderExecutor();
+    if (orders.executed) moved.push(`${orders.executed} orders executed`);
+    if (orders.cancelled) moved.push(`${orders.cancelled} orders expired, cancelled or released`);
+    if (moved.length) log.info(scope, moved.join('; '));
+  });
 }

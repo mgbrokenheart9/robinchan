@@ -19,6 +19,7 @@ import {
   Droplets,
   ExternalLink,
   Flame,
+  Gem,
   Home,
   Image as ImageGlyph,
   Info,
@@ -114,6 +115,8 @@ export const AgriIcon = wrap(Wheat, 14);
 export const CryptoIcon = wrap(Bitcoin, 14);
 export const StocksIcon = wrap(ChartLine, 14);
 export const RhTokensIcon = wrap(Coins, 14);
+/** Base and Arbitrum: gold, silver and oil. */
+export const CommoditiesIcon = wrap(Gem, 14);
 export const WarningIcon = wrap(TriangleAlert, 14);
 export const ClockIcon = wrap(Clock, 14);
 

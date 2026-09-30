@@ -8,6 +8,7 @@
  * server modules.
  */
 export * from './env';
+export * from './chain-scope';
 export * from './tokens';
 export * from './chain';
 export * from './prices';

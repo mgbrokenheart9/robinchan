@@ -18,9 +18,9 @@ import type {
 import {
   PERP_LIQUIDATION_THRESHOLD,
   PERP_MIN_COLLATERAL,
+  PERP_NETWORK_DEFS,
   PERP_QUOTE_TTL_SEC,
   perpLiquidationPrice,
-  perpMarket,
   perpPayout,
   perpPricePnl,
   perpReserve,
@@ -47,6 +47,7 @@ import {
 } from './config';
 import { PerpError } from './errors';
 import { perpMarkFor, perpMarks, perpMarketStatus, type Mark } from './markets';
+import { inPerpScope, marketHere, perpChainScope, perpNetworkForChainId } from './network';
 import { fundingIndexAt, fundingOwed, perpMarketState, perpMarketStates, type MarketState } from './state';
 
 /**
@@ -199,7 +200,8 @@ async function estimateGasNative(txs: TxRequest[], from: Address): Promise<numbe
  * the trader's next order meanwhile.
  */
 export async function assertNothingInFlight(userId: string): Promise<void> {
-  const pending = await getPerpStore().listActions({ userId, statuses: ['pending'], limit: 50 });
+  // Nonces are per chain: a transaction on its way on one network doesn't hold up another's.
+  const pending = await getPerpStore().listActions({ chain: perpChainScope(), userId, statuses: ['pending'], limit: 50 });
   if (pending.some((a) => a.chainOrderId == null)) {
     throw new PerpError('ORDER_IN_FLIGHT', 'Your previous transaction is still waiting on the network. Let it land first.', 409);
   }
@@ -216,7 +218,12 @@ function executionFeeFor(cs: ChainState): bigint {
 const EXECUTION_NOTE = (def: PerpMarketDef) =>
   def.twap
     ? `The order fills at the first 15-minute ${def.symbol} average that starts after it — about 16 minutes from now, at a price nobody can see yet. While it waits you can ask for it back, forfeiting the opening fee.`
-    : `The order fills at Chainlink's next ${def.symbol} price — published when the price moves 0.5%, or within 24 hours. On a quiet market that can take hours; while it waits you can ask for it back, forfeiting the opening fee.`;
+    : def.reported
+      ? `The order fills at the next ${def.symbol} price Robinchan posts from Yahoo Finance after it — usually within minutes while the exchange trades. While it waits you can ask for it back, forfeiting the opening fee.`
+      : `The order fills at Chainlink's next ${def.symbol} price — published when the price moves 0.5%, or within 24 hours. On a quiet market that can take hours; while it waits you can ask for it back, forfeiting the opening fee.`;
+
+/** The chain an action's transactions go to: recorded with it, so each network's worker follows its own. */
+const actionChainId = (venue: PerpVenueId): number | null => (venue === 'agri-perp' ? (chainConfig()?.id ?? null) : null);
 
 /* ------------------------------------------------------------------ */
 /* Quote: open                                                         */
@@ -227,8 +234,8 @@ export async function quotePerpOpen(
   input: { symbol: string; side: PerpSide; collateral: number; leverage: number },
 ): Promise<PerpOpenQuote> {
   const venue = assertPerps();
-  const def = perpMarket(String(input.symbol ?? ''));
-  if (!def) throw new PerpError('NOT_FOUND', `${input.symbol || 'That symbol'} isn't a perps market.`, 404, 'symbol');
+  const def = marketHere(String(input.symbol ?? ''));
+  if (!def) throw new PerpError('NOT_FOUND', `${input.symbol || 'That symbol'} isn't a perps market here.`, 404, 'symbol');
   if (def.unavailable) throw new PerpError('NOT_TRADABLE', def.unavailable, 400, 'symbol');
   if (input.side !== 'long' && input.side !== 'short') throw new PerpError('BAD_REQUEST', 'Choose long or short.', 400, 'side');
   const leverage = Number(input.leverage);
@@ -437,6 +444,7 @@ export async function quotePerpOpen(
     amount: collateral,
     status: 'quoted',
     quote,
+    chainId: actionChainId(venue),
     chainOrderId: null,
     txHash: null,
     txHashes: [],
@@ -452,9 +460,17 @@ export async function quotePerpOpen(
 /* Quote: close                                                        */
 /* ------------------------------------------------------------------ */
 
+/** A row of another network than the request's: said in words, with where it is. */
+function elsewhere(chainId: number | null, what: string): PerpError {
+  const network = perpNetworkForChainId(chainId);
+  const where = network ? PERP_NETWORK_DEFS[network].name : `chain ${chainId}`;
+  return new PerpError('CONFLICT', `This ${what} is on ${where}: switch to ${where} to manage it.`, 409);
+}
+
 async function ownPosition(user: PerpUser, positionId: string): Promise<PerpPositionRow> {
   const row = await getPerpStore().getPosition(positionId);
   if (!row || row.address !== user.address.toLowerCase()) throw new PerpError('NOT_FOUND', 'Position not found.', 404);
+  if (!inPerpScope(row.chainId)) throw elsewhere(row.chainId, 'position');
   return row;
 }
 
@@ -463,7 +479,7 @@ export async function quotePerpClose(user: PerpUser, positionId: string): Promis
   const row = await ownPosition(user, positionId);
   if (row.status !== 'open') throw new PerpError('CONFLICT', `This position is already ${row.status}.`, 409);
   if (row.venue !== venue) throw new PerpError('NOT_CONFIGURED', 'This position is on a venue this server no longer trades.', 409);
-  const def = perpMarket(row.symbol);
+  const def = marketHere(row.symbol);
   if (!def) throw new PerpError('NOT_FOUND', 'Unknown market.', 404);
 
   const chain = venue === 'agri-perp' ? await requireChain() : null;
@@ -589,6 +605,7 @@ export async function quotePerpClose(user: PerpUser, positionId: string): Promis
     amount: row.collateral,
     status: 'quoted',
     quote,
+    chainId: actionChainId(venue),
     chainOrderId: null,
     txHash: null,
     txHashes: [],
@@ -729,6 +746,7 @@ export async function quotePerpCollateral(user: PerpUser, input: { kind: 'deposi
     amount,
     status: 'quoted',
     quote,
+    chainId: actionChainId(venue),
     chainOrderId: null,
     txHash: null,
     txHashes: [],
@@ -802,6 +820,7 @@ async function ownAction(user: PerpUser, actionId: string): Promise<PerpActionRo
   if (action.address !== user.address.toLowerCase()) {
     throw new PerpError('ADDRESS_MISMATCH', 'This quote belongs to a different wallet address.', 409);
   }
+  if (!inPerpScope(action.chainId)) throw elsewhere(action.chainId ?? null, 'order');
   return action;
 }
 
@@ -858,7 +877,7 @@ async function failAction(action: PerpActionRow, error: string): Promise<PerpAct
 
 async function settlePaperOpen(action: PerpActionRow, quote: PerpOpenQuote, signature: Hex): Promise<PerpActionRow> {
   const store = getPerpStore();
-  const def = perpMarket(quote.symbol);
+  const def = marketHere(quote.symbol);
   const mark = await perpMarkFor(quote.symbol);
   if (!def || !mark?.fresh) {
     return failAction(action, `The ${quote.symbol} price went stale before it could fill (the market may have closed). Nothing was opened.`);
@@ -1052,11 +1071,11 @@ export async function perpPositions(user: PerpUser): Promise<PerpPosition[]> {
   if (!venue) return [];
   const store = getPerpStore();
   const [rows, allMarks, states, threshold, closing] = await Promise.all([
-    store.listPositions({ address: user.address, venue, statuses: ['open'], limit: 200 }),
+    store.listPositions({ chain: perpChainScope(), address: user.address, venue, statuses: ['open'], limit: 200 }),
     perpMarks(),
     perpMarketStates(),
     thresholdFor(venue),
-    store.listActions({ userId: user.id, statuses: ['pending'], kinds: ['close'], limit: 50 }),
+    store.listActions({ chain: perpChainScope(), userId: user.id, statuses: ['pending'], kinds: ['close'], limit: 50 }),
   ]);
   const closingIds = new Set(closing.map((a) => a.positionId));
   return rows.map((row) =>
@@ -1069,6 +1088,7 @@ export async function perpHistory(user: PerpUser, opts: { page: number; limit: n
   if (!venue) return [];
   const threshold = await thresholdFor(venue);
   const rows = await getPerpStore().listPositions({
+    chain: perpChainScope(),
     address: user.address,
     venue,
     statuses: ['closed', 'liquidated'],
@@ -1133,7 +1153,7 @@ export async function perpAccount(user: PerpUser): Promise<PerpAccount> {
 export async function perpWaitingOrders(user: PerpUser, check?: (a: PerpActionRow) => Promise<unknown>): Promise<PerpWaitingOrder[]> {
   if (perpsVenue() !== 'agri-perp') return [];
   const store = getPerpStore();
-  const query = { userId: user.id, statuses: ['pending' as const], kinds: ['open' as const, 'close' as const], limit: 50 };
+  const query = { chain: perpChainScope(), userId: user.id, statuses: ['pending' as const], kinds: ['open' as const, 'close' as const], limit: 50 };
   let rows = await store.listActions(query);
   if (check && rows.length) {
     await Promise.all(rows.map((a) => check(a).catch((err) => console.warn(`[perps] check ${a.id}: ${(err as Error).message}`))));

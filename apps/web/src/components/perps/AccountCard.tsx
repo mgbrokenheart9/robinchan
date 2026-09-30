@@ -7,6 +7,7 @@ import { formatSignedUsd, formatUsd } from '@robinchan/shared';
 import { ErrorState, UpdatedAt } from '@/components/states';
 import { Skeleton, cx } from '@/components/ui';
 import { ApiClientError, apiFetch } from '@/lib/api';
+import { perpPath, usePerpNetwork } from '@/lib/perpNetwork';
 import type { Resource } from '@/lib/useApi';
 import { usePerpSigner } from '@/lib/usePerpSigner';
 
@@ -31,6 +32,7 @@ export function AccountCard({
   onChanged: () => void;
 }) {
   const signer = usePerpSigner({ onSettled: () => onChanged() });
+  const { network } = usePerpNetwork();
   const [mode, setMode] = useState<'deposit' | 'withdraw' | null>(null);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
@@ -52,7 +54,7 @@ export function AccountCard({
     setBusy(true);
     setError(null);
     try {
-      const { data } = await apiFetch<FaucetResult>('/api/perps/faucet', { json: {} });
+      const { data } = await apiFetch<FaucetResult>(perpPath('/api/perps/faucet', network), { json: {} });
       if (data.kind === 'paper') account.set(data.account);
       else if (await signer.sendPlain(address, data.txs)) onChanged();
     } catch (err) {
@@ -68,7 +70,7 @@ export function AccountCard({
     setBusy(true);
     setError(null);
     try {
-      const { data } = await apiFetch<PerpCollateralQuote>('/api/perps/collateral', { json: { kind: mode, amount: n } });
+      const { data } = await apiFetch<PerpCollateralQuote>(perpPath('/api/perps/collateral', network), { json: { kind: mode, amount: n } });
       setKind(mode);
       const record = await signer.sign(data);
       if (record) {

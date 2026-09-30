@@ -1,7 +1,8 @@
 import type { Candle, CandleInterval, CandleSeries } from '@robinchan/shared';
-import { cacheKey, getCache } from '@robinchan/store';
+import { getCache } from '@robinchan/store';
 
 import { CANDLES_KEPT, INTERVAL_SEC, bucketStart } from '../candles';
+import { perpKey } from './network';
 
 /**
  * Perps chart bars, built by the worker from the Chainlink price (brief §11:
@@ -12,8 +13,9 @@ import { CANDLES_KEPT, INTERVAL_SEC, bucketStart } from '../candles';
  * carry none.
  */
 
+/** The network in scope's bars (network.ts): gold on Base isn't gold on Arbitrum. */
 export function perpCandlesKey(symbol: string, interval: CandleInterval): string {
-  return cacheKey('perp-candles', `${symbol.toUpperCase()}:${interval}`);
+  return perpKey('perp-candles', `${symbol.toUpperCase()}:${interval}`);
 }
 
 /** Series outlive their TTL on purpose: a market closed for the weekend still shows its chart. */

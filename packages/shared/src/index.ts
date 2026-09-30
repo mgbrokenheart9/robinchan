@@ -3,6 +3,7 @@ export * from './constants';
 export * from './format';
 export * from './heat';
 export * from './chain';
+export * from './perp-networks';
 export * from './perps';
 export * from './gap';
 export * from './check';

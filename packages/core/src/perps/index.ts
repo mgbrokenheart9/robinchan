@@ -12,6 +12,7 @@ export * from './config';
 export * from './deploy-config';
 export * from './errors';
 export * from './keeper';
+export * from './network';
 export * from './markets';
 export * from './pipeline';
 export * from './prices';

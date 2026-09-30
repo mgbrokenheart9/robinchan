@@ -1,5 +1,7 @@
 import { resolveChainConfig, type ChainConfig, type TierId } from '@robinchan/shared';
 
+import { chainOverride } from './chain-scope';
+
 /**
  * Typed access to the environment for everything server-side. Read on every
  * call rather than captured at import time: the worker loads `.env` after its
@@ -40,8 +42,11 @@ export const socialHeatEnabled = (): boolean => flag('FEATURE_SOCIAL_HEAT');
  * The chain as the server sees it. `RPC_URL`, when set, is the server's own
  * endpoint (the worker, the keeper, the API's reads) — a paid provider URL
  * with its key stays out of the browser, which uses NEXT_PUBLIC_RPC_URL.
+ * Inside a perps network's scope (chain-scope.ts), that network's chain.
  */
 export function chainConfig(): ChainConfig | null {
+  const override = chainOverride();
+  if (override) return override.chain;
   return resolveChainConfig({
     chainId: process.env.NEXT_PUBLIC_CHAIN_ID,
     chainName: process.env.NEXT_PUBLIC_CHAIN_NAME,

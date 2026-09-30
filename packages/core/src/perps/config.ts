@@ -3,6 +3,7 @@ import { PERP_CHAIN_SLIPPAGE_BPS, PERP_CLOSE_FEE_BPS, PERP_DEFAULT_SLIPPAGE_BPS,
 
 import { isDev } from '../env';
 import { DEFAULT_FUNDING_RATE_PER_HOUR } from './deploy-config';
+import { secondaryDeployment, type AgriPerpContracts } from './network';
 
 /**
  * Perps configuration (Agri Perps brief §5A), read on every call like the
@@ -34,18 +35,23 @@ export const perpsEnabled = (): boolean => flag('FEATURE_PERPS');
 /**
  * Where positions live. `paper` (dev only, refused elsewhere): the
  * database, against a virtual USDC balance. `agri-perp`: the contracts,
- * which need all three addresses.
+ * which need all three addresses. On a network other than the primary
+ * (network.ts), only its contracts: there's no paper venue there.
  */
 export function perpsVenue(): PerpVenueId | null {
+  const secondary = secondaryDeployment();
+  if (secondary) return secondary.contracts ? 'agri-perp' : null;
   const v = (process.env.PERPS_VENUE ?? '').trim();
   if (v === 'agri-perp') return agriPerpContracts() ? 'agri-perp' : null;
   if (v === 'paper' || v === '') return isDev() ? 'paper' : null;
   return null;
 }
 
-export type AgriPerpContracts = { perp: Address; vault: Address; feed: Address };
+export type { AgriPerpContracts };
 
 export function agriPerpContracts(): AgriPerpContracts | null {
+  const secondary = secondaryDeployment();
+  if (secondary) return secondary.contracts;
   const perp = addr('AGRI_PERP_ADDRESS');
   const vault = addr('AGRI_VAULT_ADDRESS');
   const feed = addr('AGRI_FEED_ADDRESS');
@@ -60,6 +66,8 @@ export function agriPerpContracts(): AgriPerpContracts | null {
  *   settle on a price they made up.
  */
 export function perpsOracleMode(): 'chainlink' | 'mock' {
+  const secondary = secondaryDeployment();
+  if (secondary) return secondary.oracleMode;
   return process.env.PERPS_ORACLE?.trim() === 'mock' && isDev() ? 'mock' : 'chainlink';
 }
 
@@ -70,6 +78,8 @@ export function perpsOracleMode(): 'chainlink' | 'mock' {
  * Indonesian ISPs; dRPC's public endpoint isn't.
  */
 export function perpOracleRpcUrl(): string {
+  const secondary = secondaryDeployment();
+  if (secondary) return secondary.oracleRpcUrl;
   return process.env.PERPS_ORACLE_RPC_URL?.trim() || 'https://robinhood.drpc.org';
 }
 
@@ -112,7 +122,8 @@ export const perpMaxOpenInterest = (): number => num('PERPS_MAX_OI_USD', 1_000_0
  * that's USDG — bridged USDC arrives as Paxos' Global Dollar, and the chain's
  * bridged USDC has barely any supply. 6 decimals either way.
  */
-export const perpCollateralSymbol = (): string => process.env.PERPS_COLLATERAL_SYMBOL?.trim() || 'USDC';
+export const perpCollateralSymbol = (): string =>
+  secondaryDeployment()?.collateralSymbol ?? (process.env.PERPS_COLLATERAL_SYMBOL?.trim() || 'USDC');
 
 export const paperFaucetAmount = (): number => num('PERPS_FAUCET_USDC', 10_000);
 export const paperFaucetCap = (): number => num('PERPS_FAUCET_CAP_USDC', 100_000);
@@ -122,6 +133,8 @@ export const paperFaucetCap = (): number => num('PERPS_FAUCET_CAP_USDC', 100_000
  * contract's `minExecutionFee`. Covers the keeper's gas; 0 on a dev chain.
  */
 export function perpExecutionFeeWei(): bigint {
+  const secondary = secondaryDeployment();
+  if (secondary) return secondary.executionFeeWei;
   const raw = process.env.PERPS_EXECUTION_FEE_WEI?.trim();
   return raw && /^\d{1,30}$/.test(raw) ? BigInt(raw) : 0n;
 }

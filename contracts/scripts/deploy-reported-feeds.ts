@@ -5,6 +5,11 @@
  * `npx tsx scripts/perps-markets.mts` at the repo root.
  *
  *   npx hardhat run scripts/deploy-reported-feeds.ts --network rhMainnet
+ *   npx hardhat run scripts/deploy-reported-feeds.ts --network base       (corn, soybeans, wheat, coffee)
+ *   npx hardhat run scripts/deploy-reported-feeds.ts --network arbitrum
+ *
+ * On Base and Arbitrum (Multichain brief) the markets are deploy/base/'s and
+ * deploy/arbitrum/'s: Chainlink has no agri feed there either.
  *
  * Each feed starts on its front month (the first whose roll time is more than
  * a day off), reading it from Yahoo Finance. The keeper — the reporter — posts
@@ -25,6 +30,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { network } from 'hardhat';
 import { type Address, type Hex } from 'viem';
 
+import { deployFile, targetOf } from './lib/networks.js';
+
 type DeployReportedFeed = {
   symbol: string;
   description: string;
@@ -33,7 +40,6 @@ type DeployReportedFeed = {
 };
 
 const ROLL_NOTICE_SEC = 86_400;
-const feeds = JSON.parse(readFileSync(new URL('../deploy/reported-feeds.json', import.meta.url), 'utf8')) as DeployReportedFeed[];
 const env = (name: string): string | undefined => process.env[name]?.trim() || undefined;
 /** As packages/shared's reportedSource(): the feed's `source` names the month the keeper reads. */
 const sourceOf = (symbol: string) => `Yahoo Finance ${symbol} (delayed)`;
@@ -42,6 +48,8 @@ const { viem } = await network.create();
 const publicClient = await viem.getPublicClient();
 const [deployer] = await viem.getWalletClients();
 const chainId = await publicClient.getChainId();
+const target = targetOf(chainId);
+const feeds = JSON.parse(readFileSync(deployFile(target, 'reported-feeds.json'), 'utf8')) as DeployReportedFeed[];
 const reporter = (env('REPORTER_ADDRESS') ?? env('KEEPER_ADDRESS') ?? deployer.account.address) as Address;
 const owner = (env('OWNER_ADDRESS') ?? deployer.account.address) as Address;
 
@@ -50,7 +58,7 @@ async function mined(hash: Promise<Hex>): Promise<void> {
   if (receipt.status !== 'success') throw new Error(`transaction ${receipt.transactionHash} reverted`);
 }
 
-console.log(`Deploying ${feeds.length} reported agri feeds to chain ${chainId} from ${deployer.account.address}; reporter ${reporter}`);
+console.log(`Deploying ${feeds.length} reported agri feeds to ${target.name} (chain ${chainId}) from ${deployer.account.address}; reporter ${reporter}`);
 const now = Math.floor(Date.now() / 1000);
 const deployed: Array<{ symbol: string; feed: Address; month: string }> = [];
 
@@ -67,10 +75,17 @@ const record = { chainId, reporter, owner, feeds: deployed, deployedAt: new Date
 mkdirSync(new URL('../deployments/', import.meta.url), { recursive: true });
 writeFileSync(new URL(`../deployments/${chainId}-reported.json`, import.meta.url), `${JSON.stringify(record, null, 2)}\n`);
 
-console.log(`
+const registry =
+  target.network === 'robinhood'
+    ? `1. Put each address in packages/shared/src/perps.ts as the market's reported \`roundFeed\`:
+${deployed.map((d) => `     ${d.symbol}: roundFeed: '${d.feed}',`).join('\n')}`
+    : `1. Put them in packages/shared/src/perps.ts, NETWORK_REPORTED_FEEDS[${chainId}]:
+     ${chainId}: { ${deployed.map((d) => `${d.symbol}: '${d.feed}'`).join(', ')} },
+   (or, for a testnet, in the app's environment:
+     ${target.envPrefix}REPORTED_FEEDS=${JSON.stringify(Object.fromEntries(deployed.map((d) => [d.symbol, d.feed])))} )`;
+if (process.env.LAUNCHING !== 'true') console.log(`
 Record: deployments/${chainId}-reported.json. Next:
-1. Put each address in packages/shared/src/perps.ts as the market's reported \`roundFeed\`:
-${deployed.map((d) => `     ${d.symbol}: roundFeed: '${d.feed}',`).join('\n')}
+${registry}
    The keeper then posts a round as each market trades.
 2. List the markets once each feed has a round:
-     npx hardhat run scripts/list-agri-markets.ts --network ${chainId === 4663 ? 'rhMainnet' : chainId === 31337 ? 'localhost' : '<network>'}`);
+     FEEDS=reported npx hardhat run scripts/list-agri-markets.ts --network ${target.hardhatName}`);

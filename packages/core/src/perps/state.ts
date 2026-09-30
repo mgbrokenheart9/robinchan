@@ -1,10 +1,11 @@
 import type { PerpMarketDef, PerpVenueId } from '@robinchan/shared';
-import { scheduledContract, tradablePerpMarkets } from '@robinchan/shared';
+import { scheduledContract } from '@robinchan/shared';
 import { getPerpStore, type PerpMarketStateRow } from '@robinchan/store';
 import type { Hex } from 'viem';
 
 import { chainState, type ChainState } from './chain';
 import { fundingRatePerHour, perpMaxOpenInterest, perpsVenue } from './config';
+import { perpChainScope, tradableHere } from './network';
 
 /**
  * What a market is doing on the configured venue, in one shape: which feed
@@ -68,7 +69,7 @@ export async function paperMarketRows(): Promise<Map<string, PerpMarketStateRow>
   const store = getPerpStore();
   const rows = new Map((await store.listMarketStates()).map((r) => [r.symbol, r]));
   const now = Date.now();
-  for (const def of tradablePerpMarkets()) {
+  for (const def of tradableHere()) {
     if (rows.has(def.symbol)) continue;
     const row = initialRow(def, now);
     await store.upsertMarketState(row);
@@ -105,7 +106,7 @@ export async function perpMarketStates(): Promise<Map<string, MarketState>> {
   if (venue === 'agri-perp') {
     const state = await chainState();
     if (!state) return out;
-    for (const def of tradablePerpMarkets()) {
+    for (const def of tradableHere()) {
       const s = fromChain(state, def);
       if (s) out.set(def.symbol, s);
     }
@@ -114,8 +115,8 @@ export async function perpMarketStates(): Promise<Map<string, MarketState>> {
   if (venue !== 'paper') return out;
 
   const store = getPerpStore();
-  const [rows, oi] = await Promise.all([paperMarketRows(), store.openInterest('paper')]);
-  for (const def of tradablePerpMarkets()) {
+  const [rows, oi] = await Promise.all([paperMarketRows(), store.openInterest('paper', perpChainScope())]);
+  for (const def of tradableHere()) {
     const row = rows.get(def.symbol);
     if (!row) continue;
     out.set(def.symbol, {

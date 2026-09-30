@@ -6,9 +6,13 @@
  *   npx hardhat run scripts/deploy.ts --network localhost
  *   npx hardhat run scripts/deploy.ts --network rhTestnet
  *   npx hardhat run scripts/deploy.ts --network rhMainnet   (read MAINNET.md first)
+ *   npx hardhat run scripts/deploy.ts --network base        (Multichain brief: MAINNET.md §15)
+ *   npx hardhat run scripts/deploy.ts --network arbitrum
  *
- * Each market is listed with its Chainlink Data Feed on Robinhood Chain
- * mainnet. On the local chain — or a testnet with ALLOW_MOCK_FEEDS=true — a
+ * Each market is listed with its Chainlink Data Feed on the chain — on Base
+ * and Arbitrum, the markets in deploy/base/ and deploy/arbitrum/ (gold,
+ * silver, oil); their agri markets follow on ReportedRoundFeeds
+ * (deploy-reported-feeds.ts, then list-agri-markets.ts). On the local chain — or a testnet with ALLOW_MOCK_FEEDS=true — a
  * MockAggregator per market stands in, and the worker (PERPS_ORACLE=mock)
  * posts live prices into it.
  *
@@ -21,6 +25,7 @@
  *   USDC_ADDRESS           The settlement stablecoin. On the local chain (or
  *                          a testnet with ALLOW_MOCK_USDC=true) a mintable
  *                          MockUSDC is deployed instead; never on mainnet.
+ *                          On Base and Arbitrum, Circle's USDC by default.
  *   SEED_LIQUIDITY_USDC    Pool seed (brief §11 step 5), from the deployer's
  *                          USDC. Default 1,000,000 on MockUSDC, 0 otherwise.
  *   OWNER_ADDRESS          The Safe that owns everything once it's set up.
@@ -37,6 +42,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { network } from 'hardhat';
 import { maxUint256, parseUnits, type Address, type Hex, type PublicClient } from 'viem';
 
+import { targetOf, deployFile } from './lib/networks.js';
 import { preflight, printChecks } from './lib/preflight.js';
 
 type DeployMarket = {
@@ -48,15 +54,19 @@ type DeployMarket = {
   mockPrice: number;
 };
 
-const markets = JSON.parse(readFileSync(new URL('../deploy/markets.json', import.meta.url), 'utf8')) as DeployMarket[];
 const env = (name: string): string | undefined => process.env[name]?.trim() || undefined;
 
 const { viem } = await network.create();
 const publicClient = await viem.getPublicClient();
 const [deployer] = await viem.getWalletClients();
 const chainId = await publicClient.getChainId();
-const local = chainId === 31337;
-const mainnet = chainId === 4663;
+const target = targetOf(chainId);
+const local = target.local;
+const mainnet = target.mainnet;
+const markets = JSON.parse(readFileSync(deployFile(target, 'markets.json'), 'utf8')) as DeployMarket[];
+// Circle's USDC where there is one (Base, Arbitrum), unless the environment names another or a mock is asked for.
+const defaultUsdc = mainnet ? target.usdc.mainnet : env('ALLOW_MOCK_USDC') === 'true' || local ? null : target.usdc.testnet;
+if (!env('USDC_ADDRESS') && defaultUsdc) process.env.USDC_ADDRESS = defaultUsdc;
 const mockFeeds = local || (!mainnet && env('ALLOW_MOCK_FEEDS') === 'true');
 
 async function mined(hash: Promise<Hex>): Promise<void> {
@@ -64,7 +74,7 @@ async function mined(hash: Promise<Hex>): Promise<void> {
   if (receipt.status !== 'success') throw new Error(`transaction ${receipt.transactionHash} reverted`);
 }
 
-console.log(`Deploying to chain ${chainId} from ${deployer.account.address}`);
+console.log(`Deploying to ${target.name} (chain ${chainId}) from ${deployer.account.address}`);
 
 if (!local) {
   console.log('\nPreflight');
@@ -72,6 +82,8 @@ if (!local) {
     await preflight({
       client: publicClient as unknown as PublicClient,
       mainnet,
+      markets,
+      network: target.name,
       feeds: mockFeeds ? 'mock' : 'chainlink',
       usdc: env('USDC_ADDRESS'),
       owner: env('OWNER_ADDRESS'),
@@ -81,7 +93,7 @@ if (!local) {
       minExecutionFeeWei: env('MIN_EXECUTION_FEE_WEI'),
       maxOiUsd: env('MAX_OI_USD'),
       seedUsdc: env('SEED_LIQUIDITY_USDC'),
-      directoryUrl: env('CHAINLINK_DIRECTORY_URL'),
+      directoryUrl: env('CHAINLINK_DIRECTORY_URL') ?? (mainnet ? target.chainlinkDirectory : undefined),
     }),
   );
   if (!passed) throw new Error('Preflight failed: nothing was deployed.');
@@ -178,7 +190,26 @@ const record = {
 mkdirSync(new URL('../deployments/', import.meta.url), { recursive: true });
 writeFileSync(new URL(`../deployments/${chainId}.json`, import.meta.url), `${JSON.stringify(record, null, 2)}\n`);
 
-console.log(`
+// launch-network.ts prints one summary of its own.
+const launching = process.env.LAUNCHING === 'true';
+if (launching) console.log(`  record: deployments/${chainId}.json`);
+else if (target.network !== 'robinhood') {
+  const p = target.envPrefix;
+  console.log(`
+For the app's .env — ${target.name} runs beside Robinhood Chain, its settings under ${p}
+(the worker's KEEPER_PRIVATE_KEY is shared: fund it with ETH on ${target.name} too):
+${p}RPC_URL=<a provider's ${target.name} endpoint>
+${p}CHAIN_ID=${chainId}
+${p}AGRI_FEED_ADDRESS=${feed.address}
+${p}AGRI_VAULT_ADDRESS=${vault.address}
+${p}AGRI_PERP_ADDRESS=${perp.address}
+${p}AGRI_DEPLOY_BLOCK=${record.block}${mockFeeds ? `
+${p}PERPS_ORACLE=mock` : ''}${minExecutionFee ? `
+${p}PERPS_EXECUTION_FEE_WEI=${minExecutionFee}` : ''}
+
+Next: the agri markets' feeds (MAINNET.md §15):
+npx hardhat run scripts/deploy-reported-feeds.ts --network ${target.hardhatName}`);
+} else console.log(`
 For the app's .env (the worker also needs KEEPER_PRIVATE_KEY to execute orders):
 FEATURE_PERPS=true
 PERPS_VENUE=agri-perp
@@ -194,8 +225,8 @@ NEXT_PUBLIC_EXPLORER_URL=https://robinhoodchain.blockscout.com
 NEXT_PUBLIC_NATIVE_SYMBOL=ETH`
     : ''
 }`);
-if (!local) {
-  const net = mainnet ? 'rhMainnet' : 'rhTestnet';
+if (!local && !launching) {
+  const net = target.hardhatName;
   console.log(`
 Verify the source on the explorer:
 npx hardhat verify --network ${net} ${feed.address} ${deployer.account.address}

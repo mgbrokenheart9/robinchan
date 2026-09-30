@@ -14,6 +14,7 @@ import {
 import { SignButton } from '@/components/orders/OrderParts';
 import { cx } from '@/components/ui';
 import { ApiClientError, apiFetch } from '@/lib/api';
+import { perpPath, usePerpNetwork } from '@/lib/perpNetwork';
 import { useConfig } from '@/lib/config';
 import { usePerpSigner } from '@/lib/usePerpSigner';
 
@@ -39,6 +40,7 @@ export function PerpTicket({
   onSettled: (record: PerpActionRecord) => void;
 }) {
   const signer = usePerpSigner({ onSettled });
+  const { network } = usePerpNetwork();
   const collateralSymbol = useConfig().perpsCollateral;
   const [side, setSide] = useState<PerpSide>('long');
   const [collateral, setCollateral] = useState('');
@@ -102,7 +104,7 @@ export function PerpTicket({
     setQuoting(true);
     setError(null);
     try {
-      const { data } = await apiFetch<PerpOpenQuote>('/api/perps/quote', {
+      const { data } = await apiFetch<PerpOpenQuote>(perpPath('/api/perps/quote', network), {
         json: { action: 'open', symbol: market.symbol, side, collateral: num, leverage },
       });
       setQuote(data);

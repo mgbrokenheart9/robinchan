@@ -1,0 +1,35 @@
+[
+  {
+    "symbol": "XAU",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x1F954Dc24a49708C26E0C1777f16750B5C6d5a2c",
+      "description": "XAU / USD"
+    },
+    "mockPrice": 4170
+  },
+  {
+    "symbol": "XAG",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0xC56765f04B248394CF1619D20dB8082Edbfa75b1",
+      "description": "XAG / USD"
+    },
+    "mockPrice": 61
+  },
+  {
+    "symbol": "WTI",
+    "maxLeverage": 5,
+    "maxOiUsd": 1000000,
+    "fundingRatePerHour": "0",
+    "feed": {
+      "proxy": "0x594b919AD828e693B935705c3F816221729E7AE8",
+      "description": "WTI / USD"
+    },
+    "mockPrice": 88
+  }
+]

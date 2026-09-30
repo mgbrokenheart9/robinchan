@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { network } from 'hardhat';
 import { encodeFunctionData, keccak256, parseUnits, toBytes, type Address, type Hex } from 'viem';
 
+import { deployFile, targetOf } from './lib/networks.js';
 import { ownerCall } from './lib/owner-call.js';
 
 type DeployMarket = {
@@ -34,14 +35,15 @@ type DeployMarket = {
 
 const env = (name: string): string | undefined => process.env[name]?.trim() || undefined;
 const only = env('ONLY')?.split(',').map((s) => s.trim().toUpperCase());
-const markets = (JSON.parse(readFileSync(new URL('../deploy/markets.json', import.meta.url), 'utf8')) as DeployMarket[]).filter(
-  (m) => !only || only.includes(m.symbol),
-);
 const maxOi = parseUnits(env('MAX_OI_USD') ?? '10', 6);
 
 const { viem } = await network.create();
 const publicClient = await viem.getPublicClient();
 const chainId = await publicClient.getChainId();
+// Each network's own markets: deploy/base/markets.json on Base (Multichain brief).
+const markets = (JSON.parse(readFileSync(deployFile(targetOf(chainId), 'markets.json'), 'utf8')) as DeployMarket[]).filter(
+  (m) => !only || only.includes(m.symbol),
+);
 const recordUrl = new URL(`../deployments/${chainId}.json`, import.meta.url);
 const record = JSON.parse(readFileSync(recordUrl, 'utf8')) as {
   feed: Address;

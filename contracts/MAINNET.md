@@ -1,7 +1,7 @@
 # Perps on Robinhood Chain mainnet
 
 The runbook for putting the perps contracts on Robinhood Chain (chain id 4663) with real USDC,
-and for running them afterwards. Everything here is scripted; nothing needs a private key in a
+and for running them afterwards — and, in §15, the same stack on Base and Arbitrum. Everything here is scripted; nothing needs a private key in a
 file or in chat.
 
 ## Where things stand (checked on chain, 2026-09-26)
@@ -401,3 +401,76 @@ feed is quiet over the weekend). SpaceX is private; its feed prices Robinhood's 
 `description()` against the registry, lists the feed on AgriFeed and the market on AgriPerp at the
 $10 launch cap, skips what's already listed, and adds them to `deployments/4663.json`. Until then the
 page shows them as not listed yet.
+
+## 15. Base and Arbitrum (Multichain brief)
+
+Robinhood Chain stays exactly as deployed: nothing on it changes, and the RH Tokens, the stock
+markets and the Gap board stay there. Base (8453) and Arbitrum One (42161) each get their own stack —
+the same, unmodified AgriFeed, AgriVault and AgriPerp — settled in Circle's native USDC.
+
+**Why not "Chainlink native agri feeds".** The brief assumed Chainlink publishes wheat, corn, soy and
+coffee on Base and Arbitrum. It doesn't: Chainlink's directories (`feeds-ethereum-mainnet-base-1.json`,
+`…-arbitrum-1.json`) list no agri feed on either chain (checked 2026-09-30). The commodities it does
+publish there are gold and silver on both, and WTI oil on Arbitrum. The owner chose the mix on
+2026-09-30:
+
+| Network | Chainlink markets (deploy.ts) | Operator's markets (deploy-reported-feeds.ts) |
+|---|---|---|
+| Base | XAU 0x5213…cF31, XAG 0x7dBC…3f0c | CORN, SOYB, WEAT, COFF (Yahoo Finance, as §12) |
+| Arbitrum One | XAU 0x1F95…5a2c, XAG 0xC567…75b1, WTI 0x594b…7AE8 | CORN, SOYB, WEAT, COFF |
+
+Each Chainlink feed was read on chain the same day: 8 decimals, 0.5% deviation, a 24-hour heartbeat,
+an observation time (`startedAt`) 12–14 s before each round lands — AgriFeed lists them as they are.
+WTI is one of Chainlink's "custom" feeds, a higher-risk category: keep its cap smallest.
+
+**Terms.** 5× at most on every market (they all stop at the weekend and gap, like stocks — not the
+brief's 10×), $50,000 of size per position (the brief's launch limit, enforced when quoting), and
+open-interest caps from `MAX_OI_USD`. Liquidation, fees and the reward are the contract's, as on
+Robinhood Chain; the brief's "5% maintenance, 1% liquidation fee" have no knob in this contract.
+
+**L2 sequencer risk.** Chainlink recommends checking its L2 sequencer-uptime feed (Base
+0xBCF8…6433, Arbitrum 0xFdB6…697D) before trusting a price. AgriPerp doesn't: after an outage, a
+position can be liquidated on the first round before its trader could act. Orders are unaffected
+(they fill on a round observed after them). Keep caps small, or pause markets while a sequencer is
+down.
+
+1. **Keys and gas.** The deployer, and the keeper wallet (it's shared with Robinhood Chain: the same
+   KEEPER_PRIVATE_KEY) need ETH on each chain. The keeper is also the agri feeds' reporter.
+2. **Preflight** (read-only):
+   `RPC_URL=https://base-rpc.publicnode.com npx tsx scripts/preflight.ts` (and Arbitrum's). It checks
+   `deploy/base/markets.json` against Chainlink's Base directory, and Circle's USDC.
+3. **Rehearse** on a fork: `BASE_RPC_URL=<a provider's URL> npx hardhat run scripts/deploy.ts --network baseFork`.
+   Or on Base Sepolia / Arbitrum Sepolia (`--network baseSepolia`, `arbitrumSepolia`) with
+   `ALLOW_MOCK_FEEDS=true` — Chainlink has no gold feed there. The end-to-end check runs the whole
+   flow on a local node standing in for Base Sepolia: see `scripts/e2e-multichain.mts`.
+4. **Deploy:** `npx hardhat run scripts/deploy.ts --network base` (then `--network arbitrum`), with
+   OWNER_ADDRESS, KEEPER_ADDRESS, MIN_EXECUTION_FEE_WEI, MAX_OI_USD and SEED_LIQUIDITY_USDC as in §2.
+   USDC_ADDRESS defaults to Circle's USDC. It lists the Chainlink markets and prints the app's
+   `BASE_…` (or `ARB_…`) lines.
+5. **The agri feeds:** `npx hardhat run scripts/deploy-reported-feeds.ts --network base`. It prints
+   the line for `NETWORK_REPORTED_FEEDS[8453]` in `packages/shared/src/perps.ts`; commit it (or, on a
+   testnet, set `BASE_REPORTED_FEEDS`). The keeper then posts a round as each market trades.
+6. **List them** once each has a round: `npx hardhat run scripts/list-agri-markets.ts --network base`.
+7. **Verify:** `npx hardhat verify --network base …` (the commands deploy.ts printed). Base and
+   Arbitrum each have a Blockscout, which needs no key; with `ETHERSCAN_API_KEY` set (one Etherscan V2
+   key covers BaseScan and Arbiscan) it verifies there too.
+8. **Configure the app** (web and worker, e.g. Vercel and Railway):
+
+   ```env
+   BASE_RPC_URL=https://base-mainnet.g.alchemy.com/v2/<key>   # the server's own; the wallet gets the public one
+   BASE_CHAIN_ID=8453
+   BASE_AGRI_FEED_ADDRESS=…
+   BASE_AGRI_VAULT_ADDRESS=…
+   BASE_AGRI_PERP_ADDRESS=…
+   BASE_AGRI_DEPLOY_BLOCK=…
+   BASE_PERPS_EXECUTION_FEE_WEI=…     # at least the contract's minimum
+   ARB_RPC_URL=…                      # the same names with ARB_ for Arbitrum
+   ```
+
+   A network is on once its RPC is set, and trades once its three addresses are; with only the RPC
+   it shows as "coming soon" with live Chainlink prices. The worker runs every perps job once per
+   network, side by side; a chain whose RPC fails doesn't hold up another's liquidations. Railway
+   deploys the worker only when `apps/worker/**` changes (see the RH Tokens notes): changing only
+   variables needs a manual redeploy.
+9. **Smoke test** with small money on each chain, as §8: the switcher on /perps (`?chain=base`)
+   moves the wallet to the chain (adding it if needed), and every quote's transactions carry it.

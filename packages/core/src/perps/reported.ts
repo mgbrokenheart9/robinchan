@@ -1,11 +1,12 @@
 import type { PerpMarketDef, PerpReportedFeed } from '@robinchan/shared';
-import { PERP_MARKETS, reportedSource } from '@robinchan/shared';
+import { reportedSource } from '@robinchan/shared';
 
 import { publicClient } from '../chain';
 import { REPORTED_ROUND_FEED_ABI } from './abi';
 import { chainNow } from './chain';
 import { perpsVenue } from './config';
 import { keeperWallet } from './keeper';
+import { marketsHere, perpNetwork } from './network';
 
 /**
  * The agri markets the operator prices (contracts/contracts/oracles/ReportedRoundFeed.sol):
@@ -37,16 +38,34 @@ type ReportedDef = PerpMarketDef & { reported: PerpReportedFeed & { roundFeed: `
 
 export type YahooQuote = { symbol: string; price: number; quotedAt: number };
 
-/** The markets with a deployed ReportedRoundFeed. */
+/** The network in scope's markets with a deployed ReportedRoundFeed. */
 export function reportedRoundMarkets(): ReportedDef[] {
-  return PERP_MARKETS.filter((m): m is ReportedDef => Boolean(m.reported?.roundFeed));
+  return marketsHere().filter((m): m is ReportedDef => Boolean(m.reported?.roundFeed));
 }
+
+/**
+ * Each network posts the same months: one read of Yahoo serves them all for
+ * a few seconds (a quote is minutes old anyway), so three networks don't
+ * triple the requests Yahoo sees.
+ */
+const QUOTE_REUSE_MS = 15_000;
+const recentQuotes = new Map<string, { at: number; quote: Promise<YahooQuote | null> }>();
 
 /**
  * The last trade of `symbol` on Yahoo Finance, in USD (US-cent quotes scaled),
  * with the time the exchange printed it. Null when Yahoo has no price.
  */
-export async function yahooQuote(symbol: string): Promise<YahooQuote | null> {
+export function yahooQuote(symbol: string): Promise<YahooQuote | null> {
+  const hit = recentQuotes.get(symbol);
+  if (hit && Date.now() - hit.at < QUOTE_REUSE_MS) return hit.quote;
+  const quote = fetchYahooQuote(symbol);
+  recentQuotes.set(symbol, { at: Date.now(), quote });
+  // A failure isn't kept: the next network asks again.
+  quote.catch(() => recentQuotes.delete(symbol));
+  return quote;
+}
+
+async function fetchYahooQuote(symbol: string): Promise<YahooQuote | null> {
   const res = await fetch(`${YAHOO_URL()}/${encodeURIComponent(symbol)}?interval=1m&range=1d`, {
     headers: { 'User-Agent': 'Mozilla/5.0 (robinchan keeper)' },
     signal: AbortSignal.timeout(10_000),
@@ -90,6 +109,8 @@ function warnOnce(key: string, message: string, everyMs = 3_600_000): void {
 export async function runReportedRounds(): Promise<{ reported: number; rolled: number }> {
   const out = { reported: 0, rolled: 0 };
   const markets = reportedRoundMarkets();
+  const net = perpNetwork();
+  const tag = net === 'robinhood' ? '' : `${net} `;
   if (perpsVenue() !== 'agri-perp' || markets.length === 0) return out;
   const client = publicClient();
   const wallet = keeperWallet();
@@ -105,13 +126,13 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
         client.readContract({ ...on, functionName: 'rollFactor' }),
       ]);
       if (reporter.toLowerCase() !== wallet.account.address.toLowerCase()) {
-        warnOnce(`reported:reporter:${def.symbol}`, `[perps] ${def.symbol}: the keeper isn't this feed's reporter (${reporter})`);
+        warnOnce(`reported:${net}:reporter:${def.symbol}`, `[perps] ${tag}${def.symbol}: the keeper isn't this feed's reporter (${reporter})`);
         continue;
       }
       const i = def.reported.months.findIndex((m) => reportedSource(m.symbol) === source);
       const month = def.reported.months[i];
       if (!month) {
-        warnOnce(`reported:source:${def.symbol}`, `[perps] ${def.symbol}: the feed reads "${source}", which isn't a month in the registry`);
+        warnOnce(`reported:${net}:source:${def.symbol}`, `[perps] ${tag}${def.symbol}: the feed reads "${source}", which isn't a month in the registry`);
         continue;
       }
       const now = await chainNow();
@@ -121,7 +142,7 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
       const rollAt = month.rollAt ? Math.floor(Date.parse(month.rollAt) / 1000) : null;
       if (rollAt != null && now >= rollAt) {
         if (!next) {
-          warnOnce(`reported:last:${def.symbol}`, `[perps] ${def.symbol}: ${month.symbol} is past its roll time and no next month is listed — add it, or pause the market before expiry`);
+          warnOnce(`reported:${net}:last:${def.symbol}`, `[perps] ${tag}${def.symbol}: ${month.symbol} is past its roll time and no next month is listed — add it, or pause the market before expiry`);
         } else {
           const [from, to] = await Promise.all([yahooQuote(month.symbol), yahooQuote(next.symbol)]);
           if (from && to && Math.abs(from.quotedAt - to.quotedAt) <= ROLL_QUOTES_APART_SEC && now - Math.min(from.quotedAt, to.quotedAt) <= MAX_QUOTE_AGE_SEC) {
@@ -142,7 +163,7 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
         if (quote.quotedAt <= Number(lastQuotedAt)) continue;
         const move = Math.abs(Number(answer - last)) / Number(last);
         if (move > MAX_MOVE) {
-          warnOnce(`reported:move:${def.symbol}`, `[perps] ${def.symbol}: ${month.symbol} moved ${(move * 100).toFixed(1)}% since the last round — past the cap, the owner has to check and post it (reportUnchecked)`);
+          warnOnce(`reported:${net}:move:${def.symbol}`, `[perps] ${tag}${def.symbol}: ${month.symbol} moved ${(move * 100).toFixed(1)}% since the last round — past the cap, the owner has to check and post it (reportUnchecked)`);
           continue;
         }
         if (move < RECORD_MOVE && quote.quotedAt - Number(lastQuotedAt) < HEARTBEAT_SEC) continue;
@@ -151,7 +172,7 @@ export async function runReportedRounds(): Promise<{ reported: number; rolled: n
       await client.waitForTransactionReceipt({ hash, timeout: 30_000 });
       out.reported += 1;
     } catch (err) {
-      warnOnce(`reported:err:${def.symbol}`, `[perps] ${def.symbol} reported round failed: ${(err as Error).message.split('\n')[0]}`, 300_000);
+      warnOnce(`reported:${net}:err:${def.symbol}`, `[perps] ${tag}${def.symbol} reported round failed: ${(err as Error).message.split('\n')[0]}`, 300_000);
     }
   }
   return out;

@@ -9,6 +9,7 @@ import { SignButton } from '@/components/orders/OrderParts';
 import { EmptyState, ErrorState } from '@/components/states';
 import { Skeleton, cx } from '@/components/ui';
 import { ApiClientError, apiFetch } from '@/lib/api';
+import { perpPath, usePerpNetwork } from '@/lib/perpNetwork';
 import type { Resource } from '@/lib/useApi';
 import { usePerpSigner } from '@/lib/usePerpSigner';
 import { useNow } from '@/lib/usePoll';
@@ -211,6 +212,7 @@ function OpenPositions({
 /** Quote → sign, for one position, inline. Every figure is the server's close quote. */
 function ClosePanel({ position: p, onSettled }: { position: PerpPosition; onSettled: (r: PerpActionRecord) => void }) {
   const signer = usePerpSigner({ onSettled });
+  const { network } = usePerpNetwork();
   const [quote, setQuote] = useState<PerpCloseQuote | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,7 +222,7 @@ function ClosePanel({ position: p, onSettled }: { position: PerpPosition; onSett
     setLoading(true);
     setError(null);
     try {
-      const { data } = await apiFetch<PerpCloseQuote>('/api/perps/quote', { json: { action: 'close', positionId: p.id } });
+      const { data } = await apiFetch<PerpCloseQuote>(perpPath('/api/perps/quote', network), { json: { action: 'close', positionId: p.id } });
       setQuote(data);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Something went wrong. Try again.');
@@ -327,7 +329,11 @@ function WaitingOrders({ orders, onSymbol }: { orders: Resource<PerpWaitingOrder
                 {askedAt
                   ? `Asked back: released by ${releaseTime(askedAt)}, unless its price was already observed.`
                   : `Placed ${now == null ? '' : relativeTime(o.createdAt, now)} · fills at ${
-                      perpMarket(o.symbol)?.twap ? `the first 15-minute ${o.symbol} average after it (about 16 minutes)` : `Chainlink’s next ${o.symbol} price`
+                      perpMarket(o.symbol)?.twap
+                        ? `the first 15-minute ${o.symbol} average after it (about 16 minutes)`
+                        : perpMarket(o.symbol)?.reported
+                          ? `the next ${o.symbol} price Robinchan posts`
+                          : `Chainlink’s next ${o.symbol} price`
                     }, within ${marketPrice(o.acceptablePrice)}.`}
               </p>
             </div>
@@ -353,6 +359,7 @@ function WaitingOrders({ orders, onSymbol }: { orders: Resource<PerpWaitingOrder
  */
 function TakeBack({ order, onAsked }: { order: PerpWaitingOrder; onAsked: () => void }) {
   const signer = usePerpSigner();
+  const { network } = usePerpNetwork();
   const [quote, setQuote] = useState<PerpCancelQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -360,7 +367,7 @@ function TakeBack({ order, onAsked }: { order: PerpWaitingOrder; onAsked: () => 
     setError(null);
     setLoading(true);
     try {
-      setQuote((await apiFetch<PerpCancelQuote>('/api/perps/cancel', { json: { actionId: order.id } })).data);
+      setQuote((await apiFetch<PerpCancelQuote>(perpPath('/api/perps/cancel', network), { json: { actionId: order.id } })).data);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Something went wrong. Try again.');
     } finally {

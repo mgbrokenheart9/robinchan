@@ -1,5 +1,8 @@
+import type { PerpNetwork } from '@robinchan/shared';
 import {
   PERP_MARKETS,
+  PRIMARY_PERP_NETWORK,
+  perpMarketsOn,
   RH_TOKEN_MAX_POSITION_USD,
   RH_TOKEN_MIN_LIQUIDITY_USD,
   TWAP_MAX_AGE_SEC,
@@ -52,6 +55,10 @@ const MOCK_PRICES: Record<string, number> = {
   CRCL: 86,
   MU: 1_051,
   GLD: 380,
+  // Base and Arbitrum, read on chain 2026-09-30.
+  XAU: 4_170,
+  XAG: 61,
+  WTI: 88,
 };
 
 /** An agri market's PythRoundFeed, for contracts/scripts/deploy-pyth-feeds.ts. */
@@ -128,9 +135,9 @@ export function twapFeedsForDeploy(): DeployTwapFeed[] {
   }));
 }
 
-/** The agri markets the operator prices from Yahoo Finance, deployed or not. */
-export function reportedFeedsForDeploy(): DeployReportedFeed[] {
-  return PERP_MARKETS.filter((m) => m.reported).map((m) => ({
+/** A network's agri markets the operator prices from Yahoo Finance, deployed or not. */
+export function reportedFeedsForDeploy(network: PerpNetwork = PRIMARY_PERP_NETWORK): DeployReportedFeed[] {
+  return perpMarketsOn(network).filter((m) => m.reported).map((m) => ({
     symbol: m.symbol,
     description: m.reported!.description,
     maxMoveBps: 1500,
@@ -152,10 +159,13 @@ export function pythFeedsForDeploy(): DeployPythFeed[] {
   }));
 }
 
-export function perpMarketsForDeploy(): DeployMarket[] {
-  // The Chainlink markets: the agri and RH Token ones are listed on their
-  // round feeds by contracts/scripts/list-agri-markets.ts, not by the stack's deploy.
-  return tradablePerpMarkets()
+/**
+ * A network's Chainlink markets: the agri and RH Token ones are listed on
+ * their round feeds by contracts/scripts/list-agri-markets.ts, not by the
+ * stack's deploy. On Base and Arbitrum, gold, silver and oil.
+ */
+export function perpMarketsForDeploy(network: PerpNetwork = PRIMARY_PERP_NETWORK): DeployMarket[] {
+  return tradablePerpMarkets(network)
     .filter((m) => !m.reported && !m.pyth && !m.twap)
     .map((m) => {
       const feed = m.contracts[0]!;

@@ -1,12 +1,15 @@
-import { cacheKey, getCache } from '@robinchan/store';
+import { getCache } from '@robinchan/store';
 import type { Hex } from 'viem';
+
+import { perpKey } from './network';
 
 /**
  * Every market's latest oracle price, as one cache entry the worker rewrites
  * every few seconds (one multicall reads every Chainlink feed). The API only
- * reads it — no page load ever reaches an RPC for a price (brief §8).
+ * reads it — no page load ever reaches an RPC for a price (brief §8). One
+ * entry per network (network.ts): each chain's feeds are its own.
  */
-const FEEDS_KEY = cacheKey('perp', 'feeds');
+const feedsKey = (): string => perpKey('perp', 'feeds');
 const FEEDS_TTL_SEC = 30;
 
 export type OraclePrice = {
@@ -30,14 +33,14 @@ export type FeedPrices = Record<string, OraclePrice>;
 export async function writeFeedPrices(prices: OraclePrice[]): Promise<void> {
   if (!prices.length) return;
   const cache = getCache();
-  const current = (await cache.get<FeedPrices>(FEEDS_KEY).catch(() => null)) ?? {};
+  const current = (await cache.get<FeedPrices>(feedsKey()).catch(() => null)) ?? {};
   for (const p of prices) current[p.symbol.toUpperCase()] = p;
-  await cache.set(FEEDS_KEY, current, FEEDS_TTL_SEC);
+  await cache.set(feedsKey(), current, FEEDS_TTL_SEC);
 }
 
 export async function readFeedPrices(): Promise<{ feeds: FeedPrices; ageSec: number } | null> {
   const hit = await getCache()
-    .getWithAge<FeedPrices>(FEEDS_KEY)
+    .getWithAge<FeedPrices>(feedsKey())
     .catch(() => null);
   return hit ? { feeds: hit.value, ageSec: hit.ageSec } : null;
 }

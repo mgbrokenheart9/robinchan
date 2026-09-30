@@ -7,6 +7,8 @@
  *   npx hardhat run scripts/list-agri-markets.ts --network rhMainnet
  *   FEEDS=pyth npx hardhat run scripts/list-agri-markets.ts --network rhMainnet
  *   FEEDS=twap npx hardhat run scripts/list-agri-markets.ts --network rhMainnet
+ *   npx hardhat run scripts/list-agri-markets.ts --network base      (Base's agri markets)
+ *   npx hardhat run scripts/list-agri-markets.ts --network arbitrum
  *
  * Reads deployments/{chainId}.json (the perps contracts) and
  * deployments/{chainId}-{FEEDS}.json (the feeds). A market already listed is
@@ -28,6 +30,8 @@ import { readFileSync } from 'node:fs';
 import { network } from 'hardhat';
 import { keccak256, parseUnits, toBytes, type Address, type Hex } from 'viem';
 
+import { targetOf } from './lib/networks.js';
+
 const kind = process.env.FEEDS?.trim() || 'reported';
 if (kind !== 'reported' && kind !== 'pyth' && kind !== 'twap') throw new Error('FEEDS is reported, pyth or twap');
 
@@ -36,9 +40,13 @@ const publicClient = await viem.getPublicClient();
 const chainId = await publicClient.getChainId();
 const read = <T>(file: string): T => JSON.parse(readFileSync(new URL(file, import.meta.url), 'utf8')) as T;
 
+const target = targetOf(chainId);
+if (target.network !== 'robinhood' && kind !== 'reported') throw new Error(`${target.name} has only the operator's agri feeds (FEEDS=reported)`);
+
 const perps = read<{ feed: Address; perp: Address }>(`../deployments/${chainId}.json`);
 const deployed = read<{ feeds: Array<{ symbol: string; feed: Address }> }>(`../deployments/${chainId}-${kind}.json`);
-const terms = read<Array<{ symbol: string; maxLeverage: number }>>(`../deploy/${kind}-feeds.json`);
+// Each network's own terms: deploy/base/reported-feeds.json on Base (Multichain brief).
+const terms = read<Array<{ symbol: string; maxLeverage: number }>>(`../deploy/${target.dir}${kind}-feeds.json`);
 const maxOi = parseUnits(process.env.MAX_OI_USD?.trim() || '10', 6);
 
 const agriFeed = await viem.getContractAt('AgriFeed', perps.feed);

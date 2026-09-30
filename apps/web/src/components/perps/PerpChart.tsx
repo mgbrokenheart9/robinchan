@@ -8,6 +8,7 @@ import { CandleChart, type ChartMode, type PriceLineSpec } from '@/components/ch
 import { ChartAttribution } from '@/components/charts/ValueChart';
 import { EmptyState, ErrorState, UpdatedAt } from '@/components/states';
 import { Skeleton, cx } from '@/components/ui';
+import { usePerpNetwork } from '@/lib/perpNetwork';
 import type { Resource } from '@/lib/useApi';
 
 /**
@@ -31,8 +32,11 @@ export function PerpChart({
 }) {
   const bars = candles.data?.candles ?? [];
   const mode = useSyncExternalStore(subscribeMode, readMode, () => 'area' as const);
-  // RH Tokens are priced by their pool's 15-minute average, not by Chainlink.
-  const source = perpMarket(symbol)?.twap ? 'the pool’s 15-minute average' : 'Chainlink';
+  // RH Tokens are priced by their pool's 15-minute average, agri by Robinchan's posted quotes, not by Chainlink.
+  const def = perpMarket(symbol);
+  const { network, chain } = usePerpNetwork();
+  const chainName = network === 'robinhood' ? 'Robinhood Chain' : (chain?.chainName ?? 'chain');
+  const source = def?.twap ? 'the pool’s 15-minute average' : def?.reported ? 'Robinchan’s posted Yahoo Finance quotes' : 'Chainlink';
   return (
     <section className="card overflow-hidden" aria-label={`${symbol} chart`}>
       <div className="flex h-[52px] items-center justify-between gap-3 border-b border-border-soft px-4">
@@ -92,8 +96,10 @@ export function PerpChart({
           {lines.length
             ? 'Your entry and liquidation prices are the dashed lines'
             : source === 'Chainlink'
-              ? 'Prices: Chainlink on Robinhood Chain'
-              : 'Prices: Uniswap TWAP on Robinhood Chain'}
+              ? `Prices: Chainlink on ${chainName}`
+              : def?.reported
+                ? `Prices: Robinchan, from Yahoo Finance, on ${chainName}`
+                : `Prices: Uniswap TWAP on ${chainName}`}
         </span>
         <ChartAttribution />
       </div>

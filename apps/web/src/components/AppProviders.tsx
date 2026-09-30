@@ -17,8 +17,8 @@ import type { PublicConfig } from '@/server/config';
 export function AppProviders({ config, children }: { config: PublicConfig; children: ReactNode }) {
   return (
     <ConfigProvider config={config}>
-      <WalletProvider chain={config.chain}>
-        <SessionProvider chain={config.chain}>
+      <WalletProvider chain={config.chain} perpChains={config.perpChains}>
+        <SessionProvider chain={config.chain} otherChainIds={config.perpChains.map((c) => c.chainId)}>
           <CompanionProvider>{children}</CompanionProvider>
         </SessionProvider>
       </WalletProvider>

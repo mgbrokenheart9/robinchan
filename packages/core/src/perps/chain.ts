@@ -1,5 +1,4 @@
-import { tradablePerpMarkets } from '@robinchan/shared';
-import { cacheKey, getCache } from '@robinchan/store';
+import { getCache } from '@robinchan/store';
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -15,6 +14,7 @@ import { publicClient } from '../chain';
 import { AGRI_FEED_ABI, AGRI_PERP_ABI, AGRI_VAULT_ABI } from './abi';
 import { agriPerpContracts } from './config';
 import { PerpError } from './errors';
+import { perpKey, perpNetwork, tradableHere } from './network';
 
 /**
  * The on-chain venue's reads. The server reads the contracts and builds
@@ -123,7 +123,7 @@ const PERP_PARAMS = [
 export async function readChainState(): Promise<ChainState> {
   const { perp, vault, feed } = contracts();
   const c = client();
-  const symbols = tradablePerpMarkets().map((m) => m.symbol);
+  const symbols = tradableHere().map((m) => m.symbol);
   const head: Read[] = [
     ...PERP_PARAMS.map((functionName) => ({ address: perp, abi: AGRI_PERP_ABI as Abi, functionName })),
     { address: vault, abi: AGRI_VAULT_ABI, functionName: 'usdc' },
@@ -190,8 +190,8 @@ export async function readChainState(): Promise<ChainState> {
   };
 }
 
-const CHAIN_KEY = cacheKey('perp', 'chain');
-let refreshing: Promise<ChainState | null> | null = null;
+/** Per network: the read in flight, shared by everyone who asks meanwhile. */
+const refreshing = new Map<string, Promise<ChainState | null>>();
 
 /**
  * The contract state, cached for everyone: the worker refreshes it on its
@@ -200,23 +200,29 @@ let refreshing: Promise<ChainState | null> | null = null;
  * last good copy rather than nothing.
  */
 export async function chainState(opts: { maxAgeSec?: number } = {}): Promise<ChainState | null> {
+  const key = perpKey('perp', 'chain');
+  const network = perpNetwork();
   const hit = await getCache()
-    .getWithAge<ChainState>(CHAIN_KEY)
+    .getWithAge<ChainState>(key)
     .catch(() => null);
   if (hit && hit.ageSec <= (opts.maxAgeSec ?? 20)) return hit.value;
-  refreshing ??= readChainState()
-    .then(async (state) => {
-      await getCache().set(CHAIN_KEY, state, 60);
-      return state;
-    })
-    .catch((err) => {
-      console.warn(`[perps] chain state unavailable: ${(err as Error).message}`);
-      return null;
-    })
-    .finally(() => {
-      refreshing = null;
-    });
-  return (await refreshing) ?? hit?.value ?? null;
+  let read = refreshing.get(network);
+  if (!read) {
+    read = readChainState()
+      .then(async (state) => {
+        await getCache().set(key, state, 60);
+        return state;
+      })
+      .catch((err) => {
+        console.warn(`[perps] ${network} chain state unavailable: ${(err as Error).message}`);
+        return null;
+      })
+      .finally(() => {
+        refreshing.delete(network);
+      });
+    refreshing.set(network, read);
+  }
+  return (await read) ?? hit?.value ?? null;
 }
 
 /**

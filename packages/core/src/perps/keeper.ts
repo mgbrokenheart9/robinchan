@@ -3,10 +3,8 @@ import {
   PERP_CANCEL_DELAY_SEC,
   PERP_MIN_LIQUIDATION_REWARD,
   perpIsLiquidatable,
-  perpMarket,
   perpPayout,
   perpPricePnl,
-  tradablePerpMarkets,
 } from '@robinchan/shared';
 import { cacheKey, getCache, getPerpStore, type PerpActionRow, type PerpPositionRow } from '@robinchan/store';
 import { createWalletClient, http, parseEventLogs, type Hex, type Log } from 'viem';
@@ -19,6 +17,7 @@ import { chainNow, chainState, explainRevert, marketKey, revertName, type ChainM
 import { latestRound, orderRound, type FeedRound } from './chainlink';
 import { agriPerpContracts, fundingRatePerHour, keeperKey, perpsOracleMode, perpsVenue } from './config';
 import { perpMarks } from './markets';
+import { inPerpScope, marketHere, perpChainScope, perpDeployBlock, perpNetwork, tradableHere } from './network';
 import { feedPrice, readFeedPrices } from './prices';
 import { fundingIndexAt, fundingOwed, paperMarketRows } from './state';
 
@@ -83,7 +82,7 @@ export function keeperWallet() {
 export async function expirePerpQuotes(): Promise<number> {
   const store = getPerpStore();
   let n = 0;
-  for (const a of await store.listActions({ statuses: ['quoted'], limit: 500 })) {
+  for (const a of await store.listActions({ chain: perpChainScope(), statuses: ['quoted'], limit: 500 })) {
     const quote = a.quote as PerpQuote | PerpCollateralQuote | PerpCancelQuote | null;
     const leash = quote?.execution.kind === 'transactions' ? 10 * 60_000 : 60_000;
     if (a.expiresAt && Date.now() > Date.parse(a.expiresAt) + leash) {
@@ -107,7 +106,8 @@ export async function checkPendingPerpAction(action: PerpActionRow): Promise<'un
   const store = getPerpStore();
   const client = publicClient();
   const c = agriPerpContracts();
-  if (!client || !c || action.status !== 'pending') return 'unchanged';
+  // Another network's: that network's worker loop (or a request scoped to it) follows it.
+  if (!client || !c || action.status !== 'pending' || !inPerpScope(action.chainId)) return 'unchanged';
 
   let orderId = action.chainOrderId;
   if (orderId == null) {
@@ -221,10 +221,7 @@ async function cancelReason(orderId: bigint, kind: 'open' | 'close'): Promise<st
   return cancelText(reason, kind);
 }
 
-function deployBlock(): bigint {
-  const raw = process.env.AGRI_DEPLOY_BLOCK?.trim();
-  return raw && /^\d+$/.test(raw) ? BigInt(raw) : 0n;
-}
+const deployBlock = perpDeployBlock;
 
 /**
  * eth_getLogs a window at a time. Providers cap the range a request may span —
@@ -234,31 +231,37 @@ function deployBlock(): bigint {
  * in case the refusal was a passing one. PERPS_LOGS_BLOCK_RANGE sets the start.
  */
 const LOGS_SPAN_MAX = BigInt(Math.max(1, Math.floor(Number(process.env.PERPS_LOGS_BLOCK_RANGE)) || 2_000));
-let logsSpan = LOGS_SPAN_MAX;
-let logsStreak = 0;
+/** Per network: each chain's provider has its own limit. */
+const logsWindows = new Map<string, { span: bigint; streak: number }>();
 
 async function logsWindow<T>(from: bigint, to: bigint, read: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>): Promise<{ logs: T[]; to: bigint }> {
+  const network = perpNetwork();
+  let w = logsWindows.get(network);
+  if (!w) {
+    w = { span: LOGS_SPAN_MAX, streak: 0 };
+    logsWindows.set(network, w);
+  }
   for (;;) {
-    const end = from + logsSpan - 1n < to ? from + logsSpan - 1n : to;
+    const end = from + w.span - 1n < to ? from + w.span - 1n : to;
     try {
       const logs = await read(from, end);
-      if (++logsStreak >= 50 && logsSpan < LOGS_SPAN_MAX) {
-        logsSpan = logsSpan * 2n < LOGS_SPAN_MAX ? logsSpan * 2n : LOGS_SPAN_MAX;
-        logsStreak = 0;
+      if (++w.streak >= 50 && w.span < LOGS_SPAN_MAX) {
+        w.span = w.span * 2n < LOGS_SPAN_MAX ? w.span * 2n : LOGS_SPAN_MAX;
+        w.streak = 0;
       }
       return { logs, to: end };
     } catch (err) {
-      logsStreak = 0;
+      w.streak = 0;
       // One block and still refused: it isn't the range.
       if (end === from) throw err;
-      logsSpan = (end - from + 1n) / 2n;
+      w.span = (end - from + 1n) / 2n;
     }
   }
 }
 
 export async function runPerpMonitor(): Promise<{ done: number; failed: number; waiting: number }> {
   const counts = { done: 0, failed: 0, waiting: 0 };
-  for (const a of await getPerpStore().listActions({ statuses: ['pending'], limit: 200 })) {
+  for (const a of await getPerpStore().listActions({ chain: perpChainScope(), statuses: ['pending'], limit: 200 })) {
     const r = await checkPendingPerpAction(a);
     if (r === 'done') counts.done += 1;
     else if (r === 'failed') counts.failed += 1;
@@ -292,7 +295,7 @@ export async function applyPerpLogs(logs: Log[], opts: { userId?: string | null 
   const mirrorOpen = async (positionId: bigint, txOpen: string | null, fee: number) => {
     const onchain = await client.readContract({ address: c.perp, abi: AGRI_PERP_ABI, functionName: 'getPosition', args: [positionId] });
     const symbol = await client.readContract({ address: c.perp, abi: AGRI_PERP_ABI, functionName: 'symbolOf', args: [onchain.market] });
-    const def = perpMarket(symbol);
+    const def = marketHere(symbol);
     if (!def) return null;
     return store.upsertChainPosition({
       userId: opts.userId ?? null,
@@ -396,13 +399,13 @@ function marketOf(cs: ChainState, market: Hex): ChainMarket | undefined {
   return Object.values(cs.markets).find((m) => marketKey(m.symbol) === market.toLowerCase());
 }
 
-/** Orders sent recently, by id, with when. */
-const sentAt = new Map<number, number>();
+/** Orders sent recently, by network and id, with when. */
+const sentAt = new Map<string, number>();
 
-/** The markets with an order waiting on its round, as the executor last read them. */
-let waitingMarkets = new Set<string>();
+/** Per network: the markets with an order waiting on its round, as the executor last read them. */
+const waitingMarkets = new Map<string, Set<string>>();
 export function waitingOrderMarkets(): ReadonlySet<string> {
-  return waitingMarkets;
+  return waitingMarkets.get(perpNetwork()) ?? new Set();
 }
 
 /**
@@ -426,6 +429,7 @@ export async function runOrderExecutor(): Promise<{ executed: number; cancelled:
   const cs = await chainState({ maxAgeSec: 5 });
   if (!cs) return none;
   const cursorKey = cacheKey('perp', `orders:${chain.id}:${c.perp.toLowerCase()}`);
+  const network = perpNetwork();
   const cache = getCache();
   let cursor = Number((await cache.get<{ next: number }>(cursorKey))?.next ?? 1);
   const counts = { ...none };
@@ -454,7 +458,7 @@ export async function runOrderExecutor(): Promise<{ executed: number; cancelled:
     return m && !m.delisted ? [[m.symbol, m] as const] : [];
   }));
   // An RH Token's feed averages faster while an order waits on it (twap.ts).
-  waitingMarkets = new Set(markets.keys());
+  waitingMarkets.set(network, new Set(markets.keys()));
   await Promise.all(
     [...markets.values()].map(async (m) => {
       const r = await latestRound(client, m.feed).catch(() => null);
@@ -469,6 +473,7 @@ export async function runOrderExecutor(): Promise<{ executed: number; cancelled:
     const due = new Set<string>();
     for (const { order } of pending) {
       const m = marketOf(cs, order.market);
+      if (m && !isMockFeed(m)) continue;
       const r = m ? latest.get(m.symbol) : undefined;
       const from = Number(order.requestedAt) + Math.max(order.terms.minDelay, OBSERVATION_MARGIN_SEC);
       if (m && r && now >= from && r.updatedAt < from) due.add(m.symbol);
@@ -488,7 +493,7 @@ export async function runOrderExecutor(): Promise<{ executed: number; cancelled:
     send: () => wallet.writeContract({ address: c.perp, abi: AGRI_PERP_ABI, functionName: 'cancelOrder', args: [BigInt(id)] }),
   });
   const jobs = await mapLimit(pending, PARALLEL_READS, async ({ id, order }): Promise<Job | null> => {
-    if ((sentAt.get(id) ?? 0) > Date.now() - SENT_TTL_MS) return null;
+    if ((sentAt.get(`${network}:${id}`) ?? 0) > Date.now() - SENT_TTL_MS) return null;
     const market = marketOf(cs, order.market);
     if (!market) return null;
     if (market.delisted) return cancel(id);
@@ -535,7 +540,7 @@ export async function runOrderExecutor(): Promise<{ executed: number; cancelled:
     if (!job) continue;
     try {
       sent.push({ job, hash: await job.send() });
-      sentAt.set(job.id, Date.now());
+      sentAt.set(`${network}:${job.id}`, Date.now());
     } catch (err) {
       counts.skipped += 1;
       warnOnce(`${job.kind}:${job.id}`, `[perps] order ${job.id} couldn't be ${job.kind === 'execute' ? 'executed' : job.kind === 'expire' ? 'expired' : 'cancelled'}: ${revertName(err) ?? (err as Error).message.split('\n')[0]}`, 10 * 60_000);
@@ -576,7 +581,7 @@ export async function runChainKeeper(): Promise<{ candidates: number; liquidated
   const none = { candidates: 0, liquidated: 0, settled: 0, txs: [] as Hex[] };
   if (perpsVenue() !== 'agri-perp' || !c || !chain || !client) return none;
   const [open, allMarks, cs] = await Promise.all([
-    getPerpStore().listPositions({ venue: 'agri-perp', statuses: ['open'], limit: 5_000 }),
+    getPerpStore().listPositions({ chain: perpChainScope(), venue: 'agri-perp', statuses: ['open'], limit: 5_000 }),
     perpMarks(),
     chainState(),
   ]);
@@ -648,7 +653,18 @@ async function settleDelisted(rows: PerpPositionRow[]): Promise<number> {
 /* Mock mode: the local chain's oracle                                 */
 /* ------------------------------------------------------------------ */
 
+/** By chain and feed: two local chains can have a mock at one address. */
 const mockDecimals = new Map<string, number>();
+
+/**
+ * A market whose feed the mock oracle posts to: a MockAggregator. A round
+ * feed (the operator's, a pool's average) is deployed for real, testnet or
+ * not, and has its own keeper job.
+ */
+function isMockFeed(market: ChainMarket): boolean {
+  const def = marketHere(market.symbol);
+  return Boolean(def && !def.reported && !def.pyth && !def.twap);
+}
 
 /**
  * Posts a market's cached price into its local MockAggregator as a new
@@ -661,10 +677,11 @@ async function postMockRound(market: ChainMarket, opts: { force?: boolean } = {}
   if (!client || !wallet || !market.listed || market.delisted) return false;
   const cached = feedPrice((await readFeedPrices())?.feeds, market.symbol);
   if (!cached) return false;
-  let decimals = mockDecimals.get(market.feed);
+  const key = `${chainConfig()?.id ?? 0}:${market.feed}`;
+  let decimals = mockDecimals.get(key);
   if (decimals == null) {
     decimals = Number(await client.readContract({ address: market.feed, abi: CHAINLINK_FEED_ABI, functionName: 'decimals' }));
-    mockDecimals.set(market.feed, decimals);
+    mockDecimals.set(key, decimals);
   }
   const [, answer, , updatedAt] = await client.readContract({ address: market.feed, abi: CHAINLINK_FEED_ABI, functionName: 'latestRoundData' });
   const next = BigInt(Math.round(cached.price * 10 ** decimals));
@@ -687,6 +704,7 @@ export async function runMockOracle(): Promise<number> {
   if (!cs) return 0;
   let posted = 0;
   for (const market of Object.values(cs.markets)) {
+    if (!isMockFeed(market)) continue;
     try {
       if (await postMockRound(market)) posted += 1;
     } catch (err) {
@@ -709,7 +727,7 @@ export async function runMockOracle(): Promise<number> {
 export async function runPaperKeeper(): Promise<{ checked: number; liquidated: number }> {
   if (perpsVenue() !== 'paper') return { checked: 0, liquidated: 0 };
   const store = getPerpStore();
-  const [open, allMarks] = await Promise.all([store.listPositions({ venue: 'paper', statuses: ['open'], limit: 5_000 }), perpMarks()]);
+  const [open, allMarks] = await Promise.all([store.listPositions({ chain: perpChainScope(), venue: 'paper', statuses: ['open'], limit: 5_000 }), perpMarks()]);
   let liquidated = 0;
   for (const row of open) {
     const mark = allMarks.get(row.symbol);
@@ -758,7 +776,7 @@ export async function maintainPaperMarkets(): Promise<string[]> {
   const rows = await paperMarketRows();
   const now = Date.now();
   const changed: string[] = [];
-  for (const def of tradablePerpMarkets()) {
+  for (const def of tradableHere()) {
     const row = rows.get(def.symbol);
     if (!row) continue;
     const rate = fundingRatePerHour(def.symbol);

@@ -9,6 +9,7 @@ import { useSession } from '@/components/wallet/SessionProvider';
 
 import { ApiClientError, apiFetch } from './api';
 import { lockOrder, unlockOrder, useOrderLock } from './orderLock';
+import { perpPath, usePerpNetwork } from './perpNetwork';
 import { walletErrorShort, walletErrorText } from './walletError';
 
 /**
@@ -21,6 +22,11 @@ import { walletErrorShort, walletErrorText } from './walletError';
  * next price, and this hook follows it until it's done or cancelled. The
  * tab-wide order lock is shared with the spot ticket in the chat: one thing
  * in flight at a time, so transactions never collide on a nonce.
+ *
+ * On Base or Arbitrum (Multichain brief) the wallet is switched to the chain
+ * the quote's transactions are for — added to the wallet first if it
+ * doesn't know it — and the action is followed on that network, whichever
+ * the page shows by the time it settles.
  */
 export type PerpSignPhase = 'idle' | 'signing' | 'confirming' | 'pending' | 'done';
 
@@ -39,7 +45,10 @@ const POLL_MS = 2_500;
 export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => void } = {}) {
   const wagmiConfig = useWagmiConfig();
   const session = useSession();
+  const perps = usePerpNetwork();
   const lock = useOrderLock();
+  /** The network the action in hand was quoted on. */
+  const network = useRef(perps.network);
   const [state, setState] = useState<PerpSignerState>(INITIAL);
   const onSettled = useRef(opts.onSettled);
   const current = useRef<string | null>(null);
@@ -55,7 +64,7 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
     let cancelled = false;
     const timer = setInterval(async () => {
       try {
-        const { data } = await apiFetch<PerpActionRecord>(`/api/perps/actions/${pendingId}`);
+        const { data } = await apiFetch<PerpActionRecord>(perpPath(`/api/perps/actions/${pendingId}`, network.current));
         if (cancelled) return;
         if (data.status === 'done' || data.status === 'failed' || data.status === 'expired') {
           unlockOrder(pendingId);
@@ -75,14 +84,14 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
   }, [pendingId]);
 
   const ensureWallet = useCallback(
-    async (address: string): Promise<boolean> => {
+    async (address: string, target?: number): Promise<boolean> => {
       const account = getAccount(wagmiConfig);
       if (!account.isConnected || !account.address) {
         session.openPicker();
         return false;
       }
       if (account.address.toLowerCase() !== address.toLowerCase()) throw new Error('ADDRESS_CHANGED');
-      const chainId = session.chain?.id;
+      const chainId = target ?? session.chain?.id;
       if (chainId && account.chainId !== chainId) await switchChain(wagmiConfig, { chainId });
       return true;
     },
@@ -113,9 +122,12 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
         return null;
       }
       current.current = quote.id;
+      network.current = perps.network;
       setState({ ...INITIAL, phase: 'signing' });
+      // Transactions name their chain; a paper signature is the app's own.
+      const target = quote.execution.kind === 'transactions' ? quote.execution.txs[0]?.chainId : undefined;
       try {
-        if (!(await ensureWallet(quote.address))) {
+        if (!(await ensureWallet(quote.address, target))) {
           unlockOrder(quote.id);
           setState(INITIAL);
           return null;
@@ -129,7 +141,7 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
             message: typedData.message,
           } as Parameters<typeof signTypedData>[1]);
           setState((s) => ({ ...s, phase: 'confirming' }));
-          const { data } = await apiFetch<PerpActionRecord>('/api/perps/record', { json: { actionId: quote.id, signature } });
+          const { data } = await apiFetch<PerpActionRecord>(perpPath('/api/perps/record', network.current), { json: { actionId: quote.id, signature } });
           unlockOrder(quote.id);
           setState({ ...INITIAL, phase: 'done', record: data, error: data.status === 'done' ? null : data.error });
           onSettled.current?.(data);
@@ -137,17 +149,17 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
         }
         let record: PerpActionRecord | null = null;
         await sendAll(quote.execution.txs, async (hash, step) => {
-          ({ data: record } = await apiFetch<PerpActionRecord>('/api/perps/record', { json: { actionId: quote.id, txHash: hash, step } }));
+          ({ data: record } = await apiFetch<PerpActionRecord>(perpPath('/api/perps/record', network.current), { json: { actionId: quote.id, txHash: hash, step } }));
         });
         setState({ ...INITIAL, phase: 'pending', record });
         return record;
       } catch (err) {
         unlockOrder(quote.id);
-        setState((s) => ({ ...s, phase: 'idle', error: signError(err), step: null }));
+        setState((s) => ({ ...s, phase: 'idle', error: signError(err, perps.chain?.chainName), step: null }));
         return null;
       }
     },
-    [wagmiConfig, ensureWallet, sendAll],
+    [wagmiConfig, ensureWallet, sendAll, perps.network, perps.chain?.chainName],
   );
 
   /** Transactions with no action behind them (the testnet USDC faucet): send and wait. */
@@ -160,7 +172,7 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
       }
       setState({ ...INITIAL, phase: 'signing' });
       try {
-        if (!(await ensureWallet(address))) {
+        if (!(await ensureWallet(address, txs[0]?.chainId))) {
           setState(INITIAL);
           return false;
         }
@@ -173,13 +185,13 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
         setState(INITIAL);
         return true;
       } catch (err) {
-        setState((s) => ({ ...s, phase: 'idle', error: signError(err), step: null }));
+        setState((s) => ({ ...s, phase: 'idle', error: signError(err, perps.chain?.chainName), step: null }));
         return false;
       } finally {
         unlockOrder(key);
       }
     },
-    [wagmiConfig, ensureWallet, sendAll],
+    [wagmiConfig, ensureWallet, sendAll, perps.chain?.chainName],
   );
 
   const reset = useCallback(() => {
@@ -199,11 +211,11 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
   };
 }
 
-function signError(err: unknown): string {
+function signError(err: unknown, chainName?: string): string {
   if (err instanceof ApiClientError) return err.message;
   const message = err instanceof Error ? err.message : String(err);
   if (message === 'ADDRESS_CHANGED') return 'The connected wallet changed since this quote. Get a new quote.';
-  const known = walletErrorText(err);
+  const known = walletErrorText(err, chainName);
   if (known) return known;
   if (/timed? ?out/i.test(message.split('\n')[0] ?? '')) return 'The approval is taking long to confirm. Check the wallet, then get a fresh quote.';
   return `The wallet couldn’t send it (${walletErrorShort(err)}). Nothing was sent.`;

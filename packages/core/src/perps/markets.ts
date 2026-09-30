@@ -1,9 +1,10 @@
 import type { PerpCategory, PerpMarket, PerpMarketDef, PerpMarketStats } from '@robinchan/shared';
-import { PERP_MARKETS, PERP_PRICE_MAX_AGE_SEC, perpMarket, perpSessionOpen, scheduledContract } from '@robinchan/shared';
-import { cacheKey, getCache, getPerpStore } from '@robinchan/store';
+import { PERP_PRICE_MAX_AGE_SEC, perpSessionOpen, scheduledContract } from '@robinchan/shared';
+import { getCache, getPerpStore } from '@robinchan/store';
 import type { Hex } from 'viem';
 
 import { fundingRatePerHour, perpMaxOpenInterest, perpsVenue } from './config';
+import { marketHere, marketsHere, perpChainScope, perpKey } from './network';
 import { feedPrice, readFeedPrices } from './prices';
 import { perpMarketStates, type MarketState } from './state';
 
@@ -38,8 +39,8 @@ export type Mark = {
   state: MarketState;
 };
 
-/** The worker's record of each market's price about 24 hours ago, for the change column. */
-export const DAY_AGO_KEY = cacheKey('perp', 'day-ago');
+/** The worker's record of each market's price about 24 hours ago, for the change column (the network in scope's). */
+export const dayAgoKey = (): string => perpKey('perp', 'day-ago');
 
 /**
  * A market's state when no venue is configured: the registry's feed —
@@ -80,7 +81,7 @@ export async function perpMarks(): Promise<Map<string, Mark>> {
   const venue = perpsVenue();
   const nowMs = Date.now();
   const out = new Map<string, Mark>();
-  for (const def of PERP_MARKETS) {
+  for (const def of marketsHere()) {
     if (def.unavailable) continue;
     const state = states.get(def.symbol) ?? (venue ? null : displayState(def));
     if (!state) continue;
@@ -127,7 +128,7 @@ export function perpMarketStatus(
     return {
       status: 'unavailable',
       statusNote:
-        def.category === 'agri' || def.category === 'rh'
+        def.category === 'agri' || def.category === 'rh' || def.category === 'commodities'
           ? `Coming soon. ${def.name} perps open once its price feed is listed on the perps contract.`
           : `${def.symbol} isn't listed on the perps contract yet.`,
     };
@@ -173,43 +174,46 @@ export async function perpMarketViews(category?: PerpCategory): Promise<PerpMark
     perpMarks(),
     perpMarketStates(),
     getCache()
-      .get<Record<string, number>>(DAY_AGO_KEY)
+      .get<Record<string, number>>(dayAgoKey())
       .catch(() => null),
   ]);
-  return PERP_MARKETS.filter((def) => !category || def.category === category).map((def) => {
-    const state = states.get(def.symbol) ?? null;
-    const mark = allMarks.get(def.symbol) ?? null;
-    const shown = mark?.state ?? state;
-    const contract = scheduledContract(def);
-    const reference = dayAgo?.[def.symbol];
-    return {
-      symbol: def.symbol,
-      name: def.name,
-      category: def.category,
-      unit: def.unit,
-      ...perpMarketStatus(def, state, mark, { venueConfigured: Boolean(venue) }),
-      price: mark?.price ?? null,
-      confidence: null,
-      change24hPct: mark && reference ? ((mark.price - reference) / reference) * 100 : null,
-      publishTime: mark ? new Date(mark.publishTime * 1000).toISOString() : null,
-      fundingRatePerHour: shown?.fundingRate ?? fundingRatePerHour(def.symbol),
-      openInterest: { long: state?.longOi ?? 0, short: state?.shortOi ?? 0 },
-      maxLeverage: shown?.maxLeverage ?? def.maxLeverage,
-      contract: contract?.label ?? null,
-      nextRollAt: null,
-      hours: def.hours,
-      source: mark?.source ?? null,
-    } satisfies PerpMarket;
-  });
+  return marketsHere()
+    .filter((def) => !category || def.category === category)
+    .map((def) => {
+      const state = states.get(def.symbol) ?? null;
+      const mark = allMarks.get(def.symbol) ?? null;
+      const shown = mark?.state ?? state;
+      const contract = scheduledContract(def);
+      const reference = dayAgo?.[def.symbol];
+      return {
+        symbol: def.symbol,
+        name: def.name,
+        category: def.category,
+        unit: def.unit,
+        ...perpMarketStatus(def, state, mark, { venueConfigured: Boolean(venue) }),
+        price: mark?.price ?? null,
+        confidence: null,
+        change24hPct: mark && reference ? ((mark.price - reference) / reference) * 100 : null,
+        publishTime: mark ? new Date(mark.publishTime * 1000).toISOString() : null,
+        fundingRatePerHour: shown?.fundingRate ?? fundingRatePerHour(def.symbol),
+        openInterest: { long: state?.longOi ?? 0, short: state?.shortOi ?? 0 },
+        maxLeverage: shown?.maxLeverage ?? def.maxLeverage,
+        maxPositionUsd: def.maxPositionUsd ?? null,
+        contract: contract?.label ?? null,
+        nextRollAt: null,
+        hours: def.hours,
+        source: mark?.source ?? null,
+      } satisfies PerpMarket;
+    });
 }
 
 export async function perpMarketStats(symbol: string): Promise<PerpMarketStats | null> {
-  const def = perpMarket(symbol);
+  const def = marketHere(symbol);
   if (!def) return null;
   const [market] = await perpMarketViews().then((all) => all.filter((m) => m.symbol === def.symbol));
   if (!market) return null;
   const venue = perpsVenue();
-  const volume = venue ? await getPerpStore().volumeSince(venue, new Date(Date.now() - 86_400_000)) : [];
+  const volume = venue ? await getPerpStore().volumeSince(venue, new Date(Date.now() - 86_400_000), perpChainScope()) : [];
   const oi = market.openInterest.long + market.openInterest.short;
   return {
     ...market,

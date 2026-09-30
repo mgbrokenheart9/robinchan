@@ -1,3 +1,4 @@
+import { PERP_NETWORK_DEFS, PRIMARY_PERP_NETWORK, type PerpNetwork } from './perp-networks';
 import type { Address, OrderExecution } from './types';
 
 /**
@@ -10,9 +11,13 @@ import type { Address, OrderExecution } from './types';
  * 15-minute TWAP (a TwapRoundFeed each). Shared by web, API and
  * worker — the market registry, the shapes the API returns, and the math
  * every layer has to agree on.
+ *
+ * Base and Arbitrum (Multichain brief) each have a registry of their own:
+ * see `perpMarketsOn`.
  */
 
-export const PERP_CATEGORIES = ['agri', 'crypto', 'stocks', 'rh'] as const;
+/** `commodities`: gold, silver and oil, which Chainlink prices on Base and Arbitrum. */
+export const PERP_CATEGORIES = ['agri', 'crypto', 'stocks', 'rh', 'commodities'] as const;
 export type PerpCategory = (typeof PERP_CATEGORIES)[number];
 
 export type PerpSide = 'long' | 'short';
@@ -205,14 +210,14 @@ function noFeed(
  * Coming soon: no commodity price reaches Robinhood Chain yet — Chainlink has
  * no agri feed there, and Pyth's commodity data needs a paid plan.
  */
-const agri = (symbol: string, name: string, unit: string, hours: string) =>
+const agri = (symbol: string, name: string, unit: string, hours: string, chainName = 'Robinhood Chain') =>
   noFeed(
     symbol,
     name,
     'agri',
     unit,
     hours,
-    `Coming soon. ${name} perps open once a live ${name.toLowerCase()} price feed is on Robinhood Chain for the contracts to settle against.`,
+    `Coming soon. ${name} perps open once a live ${name.toLowerCase()} price feed is on ${chainName} for the contracts to settle against.`,
   );
 
 /**
@@ -227,8 +232,10 @@ function agriMarket(
   unit: string,
   hours: string,
   feeds: { pyth?: PerpPythFeed; reported?: PerpReportedFeed },
+  opts: { chainName?: string; maxPositionUsd?: number } = {},
 ): PerpMarketDef {
   const { pyth, reported } = feeds;
+  const limits = opts.maxPositionUsd != null ? { maxPositionUsd: opts.maxPositionUsd } : {};
   const live = reported?.roundFeed
     ? {
         feedId: reported.roundFeed,
@@ -244,7 +251,7 @@ function agriMarket(
           rollAt: pyth.months[0]?.rollAt ?? null,
         }
       : null;
-  if (!live) return { ...agri(symbol, name, unit, hours), ...feeds };
+  if (!live) return { ...agri(symbol, name, unit, hours, opts.chainName), ...limits, ...feeds };
   return {
     symbol,
     name,
@@ -254,11 +261,11 @@ function agriMarket(
     maxLeverage: GAPPING_MAX_LEVERAGE,
     hours,
     schedule: '24/5',
+    ...limits,
     ...feeds,
   };
 }
 
-/** A reported feed, not deployed yet, over these Yahoo Finance months. */
 /**
  * The deployed ReportedRoundFeeds on Robinhood Chain mainnet, by description
  * (contracts/deployments/4663-reported.json, 2026-09-28).
@@ -283,7 +290,32 @@ const yahoo = (description: string, months: PerpReportedFeed['months']): PerpRep
 
 /** An agri or RH Token market waiting on its feed: shown as coming soon rather than as missing an oracle. */
 export const perpComingSoon = (m: { category: PerpCategory; status?: string }): boolean =>
-  (m.category === 'agri' || m.category === 'rh') && (m.status === undefined || m.status === 'unavailable');
+  (m.category === 'agri' || m.category === 'rh' || m.category === 'commodities') && (m.status === undefined || m.status === 'unavailable');
+
+/**
+ * Yahoo Finance contract months of the agri markets more than one network
+ * lists, checked 2026-09-28. Roll times sit a few sessions before each
+ * month's first notice day.
+ */
+const AGRI_MONTHS: Record<'CORN' | 'SOYB' | 'WEAT' | 'COFF', PerpReportedFeed['months']> = {
+  CORN: [
+    { symbol: 'ZCZ26.CBT', rollAt: '2026-11-20T15:00:00Z' },
+    { symbol: 'ZCH27.CBT', rollAt: null },
+  ],
+  SOYB: [
+    { symbol: 'ZSX26.CBT', rollAt: '2026-10-23T15:00:00Z' },
+    { symbol: 'ZSF27.CBT', rollAt: '2026-12-18T15:00:00Z' },
+    { symbol: 'ZSH27.CBT', rollAt: null },
+  ],
+  WEAT: [
+    { symbol: 'ZWZ26.CBT', rollAt: '2026-11-20T15:00:00Z' },
+    { symbol: 'ZWH27.CBT', rollAt: null },
+  ],
+  COFF: [
+    { symbol: 'KCZ26.NYB', rollAt: '2026-11-12T15:00:00Z' },
+    { symbol: 'KCH27.NYB', rollAt: null },
+  ],
+};
 
 /**
  * The deployed TwapRoundFeeds on Robinhood Chain mainnet, by market
@@ -342,29 +374,16 @@ export const PERP_MARKETS: PerpMarketDef[] = [
    * after the last listed here aren't on Pyth yet.
    */
   agriMarket('CORN', 'Corn', '/bu', 'CBOT hours', {
-    reported: yahoo('Robinchan Corn / USD', [
-      { symbol: 'ZCZ26.CBT', rollAt: '2026-11-20T15:00:00Z' },
-      { symbol: 'ZCH27.CBT', rollAt: null },
-    ]),
+    reported: yahoo('Robinchan Corn / USD', AGRI_MONTHS.CORN),
   }),
   agriMarket('SOYB', 'Soybeans', '/bu', 'CBOT hours', {
-    reported: yahoo('Robinchan Soybeans / USD', [
-      { symbol: 'ZSX26.CBT', rollAt: '2026-10-23T15:00:00Z' },
-      { symbol: 'ZSF27.CBT', rollAt: '2026-12-18T15:00:00Z' },
-      { symbol: 'ZSH27.CBT', rollAt: null },
-    ]),
+    reported: yahoo('Robinchan Soybeans / USD', AGRI_MONTHS.SOYB),
   }),
   agriMarket('WEAT', 'Wheat', '/bu', 'CBOT hours', {
-    reported: yahoo('Robinchan Wheat / USD', [
-      { symbol: 'ZWZ26.CBT', rollAt: '2026-11-20T15:00:00Z' },
-      { symbol: 'ZWH27.CBT', rollAt: null },
-    ]),
+    reported: yahoo('Robinchan Wheat / USD', AGRI_MONTHS.WEAT),
   }),
   agriMarket('COFF', 'Arabica Coffee', '/lb', 'ICE hours', {
-    reported: yahoo('Robinchan Arabica Coffee / USD', [
-      { symbol: 'KCZ26.NYB', rollAt: '2026-11-12T15:00:00Z' },
-      { symbol: 'KCH27.NYB', rollAt: null },
-    ]),
+    reported: yahoo('Robinchan Arabica Coffee / USD', AGRI_MONTHS.COFF),
     pyth: {
       roundFeed: null,
       description: 'Pyth Arabica Coffee / USD',
@@ -534,24 +553,142 @@ function stock(
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* Base and Arbitrum (Multichain brief)                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The brief's launch limit on the new chains: $50k of size per position,
+ * raised once the oracles and volume have proven themselves.
+ */
+export const NEW_CHAIN_MAX_POSITION_USD = 50_000;
+
+/**
+ * The ReportedRoundFeeds deployed on each chain other than Robinhood Chain,
+ * by chain id and market (contracts/deployments/{chainId}-reported.json —
+ * `deploy-reported-feeds.ts` prints the lines to paste here). Empty until
+ * they're deployed: the markets show as coming soon. A server can also name
+ * them in its environment (`BASE_REPORTED_FEEDS`, a testnet's).
+ */
+export const NETWORK_REPORTED_FEEDS: Record<number, Record<string, `0x${string}`>> = {
+  8453: {},
+  42161: {},
+};
+
+/**
+ * Chainlink's commodity feeds on Base and Arbitrum One, from its directory
+ * (feeds-ethereum-mainnet-base-1.json, …-arbitrum-1.json) and read on chain
+ * on 2026-09-30: 8 decimals, 0.5% deviation, 24 h heartbeat, rounds landing
+ * 12–14 s after they're observed. Chainlink publishes no agri feed on
+ * either chain, so those markets use the operator's feed, as on Robinhood
+ * Chain. WTI is one of Chainlink's "custom" feeds, a higher-risk category.
+ */
+const NETWORK_CHAINLINK_FEEDS: Record<'base' | 'arbitrum', Array<{ symbol: string; name: string; unit: string; feedId: `0x${string}`; oracleSymbol: string }>> = {
+  base: [
+    { symbol: 'XAU', name: 'Gold', unit: '/oz', feedId: '0x5213eBB69743b85644dbB6E25cdF994aFBb8cF31', oracleSymbol: 'XAU / USD' },
+    { symbol: 'XAG', name: 'Silver', unit: '/oz', feedId: '0x7dBC779B2A6F9B9AaB83a2dED78A2F7E9e203f0c', oracleSymbol: 'XAG / USD' },
+  ],
+  arbitrum: [
+    { symbol: 'XAU', name: 'Gold', unit: '/oz', feedId: '0x1F954Dc24a49708C26E0C1777f16750B5C6d5a2c', oracleSymbol: 'XAU / USD' },
+    { symbol: 'XAG', name: 'Silver', unit: '/oz', feedId: '0xC56765f04B248394CF1619D20dB8082Edbfa75b1', oracleSymbol: 'XAG / USD' },
+    { symbol: 'WTI', name: 'WTI Crude Oil', unit: '/bbl', feedId: '0x594b919AD828e693B935705c3F816221729E7AE8', oracleSymbol: 'WTI / USD' },
+  ],
+};
+
+/**
+ * Gold, silver and oil trade nearly around the clock through the week and
+ * stop at the weekend: they gap like stocks, so 5× at most (see
+ * GAPPING_MAX_LEVERAGE) — not the brief's 10×.
+ */
+function commodity(
+  f: { symbol: string; name: string; unit: string; feedId: `0x${string}`; oracleSymbol: string },
+): PerpMarketDef {
+  return {
+    symbol: f.symbol,
+    name: f.name,
+    category: 'commodities',
+    unit: f.unit,
+    contracts: [{ feedId: f.feedId, oracleSymbol: f.oracleSymbol, label: `Chainlink ${f.oracleSymbol}`, rollAt: null }],
+    maxLeverage: GAPPING_MAX_LEVERAGE,
+    hours: 'Sun – Fri, nearly 24h (New York)',
+    schedule: '24/5',
+    maxPositionUsd: NEW_CHAIN_MAX_POSITION_USD,
+  };
+}
+
+/** A network's own ReportedRoundFeeds: the committed ones, and any its server names. */
+export type NetworkFeeds = { chainId?: number; reported?: Record<string, `0x${string}`> };
+
+function networkMarkets(network: 'base' | 'arbitrum', feeds: NetworkFeeds): PerpMarketDef[] {
+  const def = PERP_NETWORK_DEFS[network];
+  const chainId = feeds.chainId ?? def.mainnet.id;
+  const chainName = chainId === def.testnet.id ? def.testnet.name : def.mainnet.name;
+  const deployed = { ...NETWORK_REPORTED_FEEDS[chainId], ...feeds.reported };
+  const reported = (symbol: keyof typeof AGRI_MONTHS, description: string): PerpReportedFeed => ({
+    roundFeed: deployed[symbol] ?? null,
+    description,
+    months: AGRI_MONTHS[symbol],
+  });
+  const opts = { chainName, maxPositionUsd: NEW_CHAIN_MAX_POSITION_USD };
+  return [
+    agriMarket('CORN', 'Corn', '/bu', 'CBOT hours', { reported: reported('CORN', 'Robinchan Corn / USD') }, opts),
+    agriMarket('SOYB', 'Soybeans', '/bu', 'CBOT hours', { reported: reported('SOYB', 'Robinchan Soybeans / USD') }, opts),
+    agriMarket('WEAT', 'Wheat', '/bu', 'CBOT hours', { reported: reported('WEAT', 'Robinchan Wheat / USD') }, opts),
+    agriMarket('COFF', 'Arabica Coffee', '/lb', 'ICE hours', { reported: reported('COFF', 'Robinchan Arabica Coffee / USD') }, opts),
+    ...NETWORK_CHAINLINK_FEEDS[network].map(commodity),
+  ];
+}
+
+const networkCache = new Map<string, PerpMarketDef[]>();
+
+/**
+ * A network's market registry. Robinhood Chain's is PERP_MARKETS, unchanged.
+ * Base's and Arbitrum's list the brief's four agri markets — on the
+ * operator's feed once it's deployed there — and Chainlink's commodity feeds.
+ * `feeds` names the network's deployed ReportedRoundFeeds beyond the
+ * committed ones (a testnet's), and its chain.
+ */
+export function perpMarketsOn(network: PerpNetwork = PRIMARY_PERP_NETWORK, feeds: NetworkFeeds = {}): PerpMarketDef[] {
+  if (network === 'robinhood') return PERP_MARKETS;
+  const key = `${network}:${feeds.chainId ?? ''}:${JSON.stringify(feeds.reported ?? {})}`;
+  let markets = networkCache.get(key);
+  if (!markets) {
+    markets = networkMarkets(network, feeds);
+    networkCache.set(key, markets);
+  }
+  return markets;
+}
+
 const MARKET_INDEX = new Map(PERP_MARKETS.map((m) => [m.symbol, m]));
 
-export function perpMarket(symbol: string): PerpMarketDef | null {
-  return MARKET_INDEX.get(symbol.toUpperCase()) ?? null;
+/**
+ * A market by symbol. With a network, from that network's registry; without
+ * one, Robinhood Chain's, then any other network's — for what a market is
+ * (its name, category, unit), which is the same everywhere it's listed.
+ */
+export function perpMarket(symbol: string, network?: PerpNetwork, feeds?: NetworkFeeds): PerpMarketDef | null {
+  const s = symbol.toUpperCase();
+  if (network) return perpMarketsOn(network, feeds).find((m) => m.symbol === s) ?? null;
+  return (
+    MARKET_INDEX.get(s) ??
+    perpMarketsOn('base').find((m) => m.symbol === s) ??
+    perpMarketsOn('arbitrum').find((m) => m.symbol === s) ??
+    null
+  );
 }
 
 /** Markets that have an oracle — the ones that can ever be traded. */
-export function tradablePerpMarkets(): PerpMarketDef[] {
-  return PERP_MARKETS.filter((m) => !m.unavailable && m.contracts.length > 0);
+export function tradablePerpMarkets(network: PerpNetwork = PRIMARY_PERP_NETWORK, feeds?: NetworkFeeds): PerpMarketDef[] {
+  return perpMarketsOn(network, feeds).filter((m) => !m.unavailable && m.contracts.length > 0);
 }
 
-/** Every tradable market's Chainlink feed on Robinhood Chain mainnet. */
-export function perpOracleFeeds(): Array<{
+/** Every tradable market's feed on the network's mainnet: its Chainlink proxy, or its round feed. */
+export function perpOracleFeeds(network: PerpNetwork = PRIMARY_PERP_NETWORK, feeds?: NetworkFeeds): Array<{
   symbol: string;
   feed: `0x${string}`;
   oracleSymbol: string;
 }> {
-  return tradablePerpMarkets().map((m) => ({
+  return tradablePerpMarkets(network, feeds).map((m) => ({
     symbol: m.symbol,
     feed: m.contracts[0]!.feedId,
     oracleSymbol: m.contracts[0]!.oracleSymbol,
@@ -687,6 +824,8 @@ export type PerpMarket = {
   fundingRatePerHour: number;
   openInterest: { long: number; short: number };
   maxLeverage: number;
+  /** The largest one position may be (its size), USD; null when only the open-interest cap limits it. */
+  maxPositionUsd?: number | null;
   /** The feed behind the price, e.g. "Chainlink Robinhood NVDA / USD". */
   contract: string | null;
   nextRollAt: string | null;
@@ -861,6 +1000,7 @@ export type PerpActionRecord = {
  * the pool, and each market's Chainlink feed as the contracts read it.
  */
 export type PerpVenueInfo = {
+  network: PerpNetwork;
   venue: PerpVenueId | null;
   chain: { id: number; name: string; explorerUrl: string | null; mainnet: boolean } | null;
   contracts: { perp: Address; vault: Address; feed: Address } | null;
