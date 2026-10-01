@@ -96,12 +96,13 @@ export default defineConfig({
      * §15 first. The public endpoints rate-limit bursts; a provider's URL with
      * a key (Alchemy, QuickNode, …) deploys without retries.
      */
-    // With no BASE_RPC_URL / ARB_RPC_URL set, the public endpoints (they work for a deploy's pace).
+    // With no BASE_RPC_URL / ARB_RPC_URL set, the chains' official endpoints (publicnode began
+    // refusing deploys with HTTP 403 on 2026-10-01; dRPC's free tier rate-limits a deploy's bursts).
     base: {
       type: 'http',
       chainType: 'op',
       chainId: 8453,
-      url: process.env.BASE_RPC_URL ? configVariable('BASE_RPC_URL') : 'https://base-rpc.publicnode.com',
+      url: process.env.BASE_RPC_URL ? configVariable('BASE_RPC_URL') : 'https://mainnet.base.org',
       accounts: [configVariable('DEPLOYER_PRIVATE_KEY')],
     },
     baseSepolia: {
@@ -115,7 +116,7 @@ export default defineConfig({
       type: 'http',
       chainType: 'generic',
       chainId: 42161,
-      url: process.env.ARB_RPC_URL ? configVariable('ARB_RPC_URL') : 'https://arbitrum-one-rpc.publicnode.com',
+      url: process.env.ARB_RPC_URL ? configVariable('ARB_RPC_URL') : 'https://arb1.arbitrum.io/rpc',
       accounts: [configVariable('DEPLOYER_PRIVATE_KEY')],
     },
     arbitrumSepolia: {

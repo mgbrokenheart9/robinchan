@@ -85,7 +85,7 @@ exchange is open), and open the markets: npm run list-agri:${target.network}
 ${bar}
  Done. Copy these into Vercel (web) AND Railway (worker) variables:
 ${bar}
-${p}RPC_URL=${target.network === 'base' ? 'https://base-rpc.publicnode.com' : 'https://arbitrum-one-rpc.publicnode.com'}
+${p}RPC_URL=${target.network === 'base' ? 'https://mainnet.base.org' : 'https://arb1.arbitrum.io/rpc'}
 ${p}CHAIN_ID=${chainId}
 ${p}AGRI_FEED_ADDRESS=${stack.feed}
 ${p}AGRI_VAULT_ADDRESS=${stack.vault}
