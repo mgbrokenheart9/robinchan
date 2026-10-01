@@ -36,7 +36,7 @@ const CHAINS: Chain[] = [
   },
   {
     name: 'Base',
-    rpc: 'https://mainnet.base.org',
+    rpc: 'https://base.gateway.tenderly.co',
     usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     needEth: '0.005',
     needUsdc: '10',

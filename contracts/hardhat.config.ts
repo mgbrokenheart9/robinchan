@@ -102,7 +102,7 @@ export default defineConfig({
       type: 'http',
       chainType: 'op',
       chainId: 8453,
-      url: process.env.BASE_RPC_URL ? configVariable('BASE_RPC_URL') : 'https://mainnet.base.org',
+      url: process.env.BASE_RPC_URL ? configVariable('BASE_RPC_URL') : 'https://base.gateway.tenderly.co',
       accounts: [configVariable('DEPLOYER_PRIVATE_KEY')],
     },
     baseSepolia: {

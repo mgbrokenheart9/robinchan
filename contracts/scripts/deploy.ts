@@ -43,6 +43,7 @@ import { network } from 'hardhat';
 import { maxUint256, parseUnits, type Address, type Hex, type PublicClient } from 'viem';
 
 import { targetOf, deployFile } from './lib/networks.js';
+import { settled } from './lib/settle.js';
 import { preflight, printChecks } from './lib/preflight.js';
 
 type DeployMarket = {
@@ -69,10 +70,8 @@ const defaultUsdc = mainnet ? target.usdc.mainnet : env('ALLOW_MOCK_USDC') === '
 if (!env('USDC_ADDRESS') && defaultUsdc) process.env.USDC_ADDRESS = defaultUsdc;
 const mockFeeds = local || (!mainnet && env('ALLOW_MOCK_FEEDS') === 'true');
 
-async function mined(hash: Promise<Hex>): Promise<void> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: await hash });
-  if (receipt.status !== 'success') throw new Error(`transaction ${receipt.transactionHash} reverted`);
-}
+/** Mined, and visible to the next call (lib/settle.ts). */
+const mined = (hash: Promise<Hex>): Promise<void> => settled(publicClient, hash);
 
 console.log(`Deploying to ${target.name} (chain ${chainId}) from ${deployer.account.address}`);
 

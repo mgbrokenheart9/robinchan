@@ -31,6 +31,7 @@ import { network } from 'hardhat';
 import { keccak256, parseUnits, toBytes, type Address, type Hex } from 'viem';
 
 import { targetOf } from './lib/networks.js';
+import { settled } from './lib/settle.js';
 
 const kind = process.env.FEEDS?.trim() || 'reported';
 if (kind !== 'reported' && kind !== 'pyth' && kind !== 'twap') throw new Error('FEEDS is reported, pyth or twap');
@@ -52,10 +53,8 @@ const maxOi = parseUnits(process.env.MAX_OI_USD?.trim() || '10', 6);
 const agriFeed = await viem.getContractAt('AgriFeed', perps.feed);
 const agriPerp = await viem.getContractAt('AgriPerp', perps.perp);
 
-async function mined(hash: Promise<Hex>): Promise<void> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: await hash });
-  if (receipt.status !== 'success') throw new Error(`transaction ${receipt.transactionHash} reverted`);
-}
+/** Mined, and visible to the next call (lib/settle.ts). */
+const mined = (hash: Promise<Hex>): Promise<void> => settled(publicClient, hash);
 
 for (const { symbol, feed } of deployed.feeds) {
   const rounds =

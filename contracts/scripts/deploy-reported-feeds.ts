@@ -31,6 +31,7 @@ import { network } from 'hardhat';
 import { type Address, type Hex } from 'viem';
 
 import { deployFile, targetOf } from './lib/networks.js';
+import { settled } from './lib/settle.js';
 
 type DeployReportedFeed = {
   symbol: string;
@@ -53,10 +54,8 @@ const feeds = JSON.parse(readFileSync(deployFile(target, 'reported-feeds.json'),
 const reporter = (env('REPORTER_ADDRESS') ?? env('KEEPER_ADDRESS') ?? deployer.account.address) as Address;
 const owner = (env('OWNER_ADDRESS') ?? deployer.account.address) as Address;
 
-async function mined(hash: Promise<Hex>): Promise<void> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: await hash });
-  if (receipt.status !== 'success') throw new Error(`transaction ${receipt.transactionHash} reverted`);
-}
+/** Mined, and visible to the next call (lib/settle.ts). */
+const mined = (hash: Promise<Hex>): Promise<void> => settled(publicClient, hash);
 
 console.log(`Deploying ${feeds.length} reported agri feeds to ${target.name} (chain ${chainId}) from ${deployer.account.address}; reporter ${reporter}`);
 const now = Math.floor(Date.now() / 1000);
