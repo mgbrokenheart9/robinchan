@@ -61,10 +61,10 @@ const CHAINS: Chain[] = [
  */
 const BUDGET = process.argv.includes('--hemat');
 const BUDGET_NEEDS: Record<string, { needEth: string; needUsdc: string; why: string } | null> = {
-  // A week, for the owner and a few testers (2026-10-01): pool 2 USDC, 1.1 USDC to test a trade with.
-  'Robinhood Chain': { needEth: '0.003', needUsdc: '0', why: 'the keeper on its cheap settings, about a week' },
+  // A week, for the owner and a few testers (2026-10-01): pools of 2 USDC, 1.1 USDC to test on Base.
+  'Robinhood Chain': { needEth: '0.0018', needUsdc: '0', why: 'the keeper on its cheap settings, about a week' },
   Base: { needEth: '0.00015', needUsdc: '3.1', why: 'the budget launch (~0.00006 ETH) and liquidations' },
-  Arbitrum: { needEth: '0.0004', needUsdc: '3.1', why: 'the budget launch (~0.0002 ETH) and liquidations' },
+  Arbitrum: { needEth: '0.0004', needUsdc: '2', why: 'the budget launch (~0.0002 ETH) and liquidations' },
 };
 const chains = BUDGET ? CHAINS.flatMap((c) => (BUDGET_NEEDS[c.name] ? [{ ...c, ...BUDGET_NEEDS[c.name] }] : [])) : CHAINS;
 
@@ -83,7 +83,7 @@ for (const c of chains) {
     const mark = (ok: boolean) => (ok ? 'OK  ' : 'LOW ');
     console.log(`${c.name}`);
     console.log(`  ${mark(ethOk)} ETH  ${Number(formatEther(eth)).toFixed(6)}  (want ${c.needEth} — ${c.why})`);
-    if (usdc != null) console.log(`  ${mark(usdcOk)} USDC ${Number(formatUnits(usdc, 6)).toFixed(2)}  (want ${c.needUsdc} — ${BUDGET ? '2 for the pool, 1.1 to test a trade (1 USDC + its fee)' : "the pool's first liquidity"})`);
+    if (usdc != null) console.log(`  ${mark(usdcOk)} USDC ${Number(formatUnits(usdc, 6)).toFixed(2)}  (want ${c.needUsdc} — ${BUDGET ? (c.name === 'Base' ? '2 for the pool, 1.1 to test a trade (1 USDC + its fee)' : 'the pool') : "the pool's first liquidity"})`);
     if (!ethOk) console.log(`       → send ${(Number(c.needEth) - Number(formatEther(eth))).toFixed(4)} ETH on ${c.name} to ${WALLET}`);
     if (!usdcOk) console.log(`       → send ${c.needUsdc} USDC on ${c.name} to ${WALLET}`);
   } catch (err) {
