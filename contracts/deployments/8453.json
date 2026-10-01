@@ -1,0 +1,24 @@
+{
+  "chainId": 8453,
+  "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "feed": "0x863B71a70F3CDe1d50305b0a17F349fa36E5ad7C",
+  "vault": "0x97855f16d94b00d16436f324e7eA42F5bEF8E4C7",
+  "perp": "0x8C9Ddb2e6c80de5B4b8CbD7cd15F70F3A150AEfe",
+  "mockFeeds": false,
+  "mockUsdc": false,
+  "markets": [
+    {
+      "symbol": "XAU",
+      "feed": "0x5213eBB69743b85644dbB6E25cdF994aFBb8cF31",
+      "description": "XAU / USD"
+    },
+    {
+      "symbol": "XAG",
+      "feed": "0x7dBC779B2A6F9B9AaB83a2dED78A2F7E9e203f0c",
+      "description": "XAG / USD"
+    }
+  ],
+  "owner": "0x6c079ff20b77fbbc89fb5c90c5f43cf24166d7d4",
+  "deployedAt": "2026-10-01T04:36:21.442Z",
+  "block": 52015017
+}

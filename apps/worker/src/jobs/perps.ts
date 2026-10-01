@@ -67,7 +67,8 @@ import { log } from '../lib/log.js';
  * Robinhood Chain, and Base and Arbitrum once their RPC is set — side by
  * side, each inside its network's scope: one chain's RPC failing doesn't
  * hold up another's liquidations. The RH Tokens' and Pyth's feeds exist only
- * on Robinhood Chain.
+ * on Robinhood Chain. Live since 2026-10-01: Arbitrum (gold, silver, oil) and
+ * Base (gold, silver), each on the budget launch (contracts/deployments).
  */
 
 const scopeOf = (network: PerpNetwork): string => (network === PRIMARY_PERP_NETWORK ? 'perps' : `perps:${network}`);
