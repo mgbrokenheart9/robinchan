@@ -54,14 +54,16 @@ const CHAINS: Chain[] = [
 
 /**
  * `--hemat` (budget): Robinhood Chain's keeper on its cheap settings
- * (PERPS_TWAP_SLEEP=true, agri prices hourly while nobody trades them) and
- * Base with gold and silver only; Arbitrum waits.
+ * (PERPS_TWAP_SLEEP=true, agri prices hourly while nobody trades them), and
+ * Base and Arbitrum with Chainlink's markets only (gold, silver; oil on
+ * Arbitrum): no agri feeds, so their keepers spend gas only on orders
+ * (paid back by each order's execution fee) and liquidations.
  */
 const BUDGET = process.argv.includes('--hemat');
 const BUDGET_NEEDS: Record<string, { needEth: string; needUsdc: string; why: string } | null> = {
   'Robinhood Chain': { needEth: '0.005', needUsdc: '0', why: 'the keeper on its cheap settings, about 3–4 weeks' },
-  Base: { needEth: '0.001', needUsdc: '5', why: 'the budget launch (~0.0001 ETH) and liquidations' },
-  Arbitrum: null,
+  Base: { needEth: '0.0003', needUsdc: '5', why: 'the budget launch (~0.00006 ETH) and liquidations' },
+  Arbitrum: { needEth: '0.0006', needUsdc: '5', why: 'the budget launch (~0.0002 ETH) and liquidations' },
 };
 const chains = BUDGET ? CHAINS.flatMap((c) => (BUDGET_NEEDS[c.name] ? [{ ...c, ...BUDGET_NEEDS[c.name] }] : [])) : CHAINS;
 
@@ -93,6 +95,6 @@ console.log(
   !ready
     ? 'Not ready yet: top up what says LOW, then run this again.'
     : BUDGET
-      ? 'Ready: npm run launch:base:hemat'
+      ? 'Ready: npm run launch:base:hemat, then npm run launch:arbitrum:hemat'
       : 'Ready: npm run launch:base, then npm run launch:arbitrum.',
 );

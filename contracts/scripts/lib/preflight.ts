@@ -49,8 +49,12 @@ export const CHAINLINK_DIRECTORY = 'https://reference-data-directory.vercel.app/
 
 /** Launch caps above this per side per market get a warning: start small, raise with the pool. */
 const LAUNCH_OI_WARN_USD = 250_000;
-/** Deploying the three contracts and listing nine markets costs about this much gas. */
-const DEPLOY_GAS = 30_000_000n;
+/**
+ * Gas to deploy the three contracts and list `markets` of them: measured
+ * 2026-10-01 at ~6M for the stack and ~0.5M a market (Base's budget launch,
+ * mocks included, 8.4M). The check asks for twice that.
+ */
+const deployGas = (markets: number): bigint => 6_000_000n + 500_000n * BigInt(markets);
 /** AgriPerp's requestPriceAge: a feed quieter than this takes no orders. */
 const REQUEST_PRICE_AGE_SEC = 90_000;
 /** A feed quiet for longer than this isn't just a market's weekend. */
@@ -224,7 +228,7 @@ export async function preflight(input: PreflightInput): Promise<Check[]> {
   /* ---- Accounts ---- */
   if (input.deployer && ADDRESS.test(input.deployer)) {
     const balance = await client.getBalance({ address: input.deployer as Address });
-    const need = DEPLOY_GAS * gasPrice * 2n;
+    const need = deployGas(markets.length) * gasPrice * 2n;
     add('deployer: gas', balance >= need ? 'ok' : 'fail', `${formatEther(balance)} ETH (deploying needs about ${formatEther(need)})`);
     if (usdc && input.seedUsdc) {
       const seed = parseUnits(input.seedUsdc, 6);

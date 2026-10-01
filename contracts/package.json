@@ -18,7 +18,8 @@
     "wallet:check:hemat": "npx tsx scripts/wallet-check.ts --hemat",
     "launch:base:hemat": "hardhat run scripts/launch-budget.ts --network base",
     "add-agri:base": "hardhat run scripts/add-agri.ts --network base",
-    "add-agri:arbitrum": "hardhat run scripts/add-agri.ts --network arbitrum"
+    "add-agri:arbitrum": "hardhat run scripts/add-agri.ts --network arbitrum",
+    "launch:arbitrum:hemat": "hardhat run scripts/launch-budget.ts --network arbitrum"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox-viem": "5.0.7",
