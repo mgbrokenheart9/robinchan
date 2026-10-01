@@ -12,7 +12,7 @@ const { runHeatReads } = await import('./jobs/reads.js');
 const { runCandles } = await import('./jobs/candles.js');
 const { runOrders } = await import('./jobs/orders.js');
 const { runPerpOrders, runPerpPrices, runPerpUpkeep, runPythFeeds, runReportedFeeds, runRhTokenPools, runTwapFeeds } = await import('./jobs/perps.js');
-const { perpPriceIntervalMs } = await import('@robinchan/core');
+const { perpNetworks, perpPriceIntervalMs } = await import('@robinchan/core');
 const { runSnapshots, msUntilMidnightUtc } = await import('./jobs/snapshots.js');
 const { runCalendar } = await import('./jobs/calendar.js');
 const { runChannels, runClips } = await import('./jobs/media.js');
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
   const once = process.argv.includes('--once');
   log.info(
     'worker',
-    `cache=${cacheBackend()} db=${dbBackend()} env=${process.env.RC_ENV ?? 'dev'}`,
+    `cache=${cacheBackend()} db=${dbBackend()} env=${process.env.RC_ENV ?? 'dev'} perps=${perpNetworks().join(',')}`,
   );
 
   // The database can be out of reach for a moment at boot (a Neon compute

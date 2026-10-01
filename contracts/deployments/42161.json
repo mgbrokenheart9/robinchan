@@ -1,0 +1,29 @@
+{
+  "chainId": 42161,
+  "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  "feed": "0x1d640f3ddaf61695f891bac46765bb0cd7f1723f",
+  "vault": "0x3b35fdd0600d815ed3627fe2d06419d6008e69a1",
+  "perp": "0x537c704b51fcdf8a50e81aa0d4a398554dd4e3d7",
+  "mockFeeds": false,
+  "mockUsdc": false,
+  "markets": [
+    {
+      "symbol": "XAU",
+      "feed": "0x1F954Dc24a49708C26E0C1777f16750B5C6d5a2c",
+      "description": "XAU / USD"
+    },
+    {
+      "symbol": "XAG",
+      "feed": "0xC56765f04B248394CF1619D20dB8082Edbfa75b1",
+      "description": "XAG / USD"
+    },
+    {
+      "symbol": "WTI",
+      "feed": "0x594b919AD828e693B935705c3F816221729E7AE8",
+      "description": "WTI / USD"
+    }
+  ],
+  "owner": "0x6c079ff20b77fbbc89fb5c90c5f43cf24166d7d4",
+  "deployedAt": "2026-10-01T03:43:41.966Z",
+  "block": 510543639
+}
