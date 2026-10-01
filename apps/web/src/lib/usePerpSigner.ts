@@ -105,9 +105,12 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
         const hash = await sendTransaction(wagmiConfig, { to: tx.to, data: tx.data, value: BigInt(tx.value), chainId: tx.chainId });
         await onSent?.(hash, index);
         if (index < txs.length - 1) {
-          // An approval has to land before the next step can spend it.
+          // An approval has to land before the next step can spend it — watched
+          // on the chain it was sent to: wagmi's own idea of the current chain
+          // can still be the app's (Robinhood Chain) right after a switch, and
+          // there an Arbitrum hash never confirms.
           setState((s) => ({ ...s, phase: 'confirming' }));
-          await waitForTransactionReceipt(wagmiConfig, { hash, timeout: 180_000 });
+          await waitForTransactionReceipt(wagmiConfig, { hash, chainId: tx.chainId, timeout: 180_000 });
         }
       }
     },
@@ -181,7 +184,7 @@ export function usePerpSigner(opts: { onSettled?: (record: PerpActionRecord) => 
           last = hash;
         });
         setState((s) => ({ ...s, phase: 'confirming' }));
-        if (last) await waitForTransactionReceipt(wagmiConfig, { hash: last, timeout: 180_000 });
+        if (last) await waitForTransactionReceipt(wagmiConfig, { hash: last, chainId: txs.at(-1)?.chainId, timeout: 180_000 });
         setState(INITIAL);
         return true;
       } catch (err) {
